@@ -704,6 +704,7 @@
                                 <th class="p-3.5">ชั้น</th>
                                 <th class="p-3.5">ที่อยู่บ้าน</th>
                                 <th class="p-3.5">สถานะการเยี่ยม</th>
+                                <th class="p-3.5 text-center">ข้อมูลนักเรียน</th>
                                 <th class="p-3.5 text-center">บันทึกข้อมูลเยี่ยมบ้าน</th>
                             </tr>
                         </thead>
@@ -1871,6 +1872,27 @@
             <div class="flex justify-end gap-2 pt-4">
                 <button type="button" onclick="closeModal('modal-edit-admin')" class="text-xs px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl">ยกเลิก</button>
                 <button type="button" onclick="confirmEditAdmin()" class="text-xs px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-medium shadow">บันทึกการแก้ไข</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-teacher-view-student" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl my-8 border border-slate-100">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-address-card text-indigo-600"></i> ข้อมูลนักเรียน
+                    </h3>
+                    <p id="tvs-subtitle" class="text-xs text-slate-500 mt-0.5">-</p>
+                </div>
+                <button type="button" onclick="closeModal('modal-teacher-view-student')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div id="tvs-body" class="text-xs text-slate-600 space-y-1.5"></div>
+            <div class="flex justify-between gap-2 pt-4 mt-4 border-t border-slate-100">
+                <button type="button" onclick="closeModal('modal-teacher-view-student')" class="text-xs px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl">ปิด</button>
+                <button type="button" id="tvs-visit-btn" class="text-xs px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-semibold shadow">
+                    <i class="fa-solid fa-house-circle-check"></i> บันทึกเยี่ยมบ้านนักเรียนคนนี้
+                </button>
             </div>
         </div>
     </div>
@@ -3367,7 +3389,7 @@
 
                 tr.innerHTML = `
                     <td class="p-3.5 font-mono text-slate-500 font-medium">${std.code}</td>
-                    <td class="p-3.5 font-semibold text-slate-800">${std.name}</td>
+                    <td class="p-3.5 font-semibold text-slate-800"><button type="button" onclick="openTeacherViewStudent('${std.id}')" class="text-left hover:text-blue-600 hover:underline underline-offset-2 transition">${std.name}</button></td>
                     <td class="p-3.5 font-medium">ม.${std.grade}</td>
                     <td class="p-3.5">${locationBadge}</td>
                     <td class="p-3.5">
@@ -3375,6 +3397,11 @@
                             ? '<span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-semibold"><i class="fa-solid fa-check"></i> เยี่ยมแล้ว</span>'
                             : '<span class="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[10px] font-semibold"><i class="fa-solid fa-clock"></i> รอเยี่ยม</span>'
                         }
+                    </td>
+                    <td class="p-3.5 text-center">
+                        <button onclick="openTeacherViewStudent('${std.id}')" class="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-[11px] font-medium transition shadow-sm flex items-center gap-1 mx-auto">
+                            <i class="fa-solid fa-eye"></i> ดูข้อมูล
+                        </button>
                     </td>
                     <td class="p-3.5 text-center">
                         <button onclick="openVisitForm('${std.id}')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-medium transition shadow-sm flex items-center gap-1 mx-auto">
@@ -3387,6 +3414,77 @@
 
             document.getElementById('stat-visited-count').innerHTML = `<i class="fa-solid fa-check-circle"></i> เยี่ยมแล้ว: ${visitedCount} คน`;
             document.getElementById('stat-pending-count').innerHTML = `<i class="fa-solid fa-clock"></i> รอเยี่ยม: ${pendingCount} คน`;
+        }
+
+        function openTeacherViewStudent(stdId) {
+            const std = db.students.find(s => s.id === stdId);
+            if(!std) return;
+            const f = std.father || {};
+            const m = std.mother || {};
+            const e = (v) => escapeHtml(String(v));
+            const row = (label, value, unit) => `<div class="flex justify-between gap-3 border-b border-slate-100 pb-1"><span class="text-slate-400 shrink-0">${label}</span><span class="font-medium text-right ${value ? 'text-slate-700' : 'text-slate-400'}">${value ? e(value) + (unit || '') : '-'}</span></div>`;
+            const head = (t) => `<p class="text-[11px] font-bold text-blue-700 bg-blue-50/70 px-2 py-1 rounded-md mt-3 mb-1.5">${t}</p>`;
+            const parentBlock = (p) => `
+                ${row('ชื่อ-นามสกุล', p.name)}
+                ${row('อายุ', p.age, ' ปี')}
+                ${row('เลขบัตรประชาชน', p.idCard)}
+                ${row('เชื้อชาติ / สัญชาติ', [p.ethnicity, p.nationality].filter(Boolean).join(' / '))}
+                ${row('ศาสนา', p.religion)}
+                ${row('เบอร์โทรศัพท์', p.phone)}
+                ${row('อาชีพ', p.occupation)}
+                ${row('รายได้', p.income ? Number(p.income).toLocaleString() : '', ' บาท/เดือน')}
+                ${row('สถานที่ทำงาน', p.workplace)}`;
+
+            document.getElementById('tvs-subtitle').innerText = `${std.name} · รหัส ${std.code} · ม.${std.grade}`;
+
+            let visitHtml = '';
+            if(std.visitStatus === 'visited' && std.visitData) {
+                const v = std.visitData;
+                visitHtml = `${head('ผลการเยี่ยมบ้าน')}
+                    ${row('วันที่เยี่ยม', v.date)}
+                    ${row('รายได้ครอบครัว', v.income ? Number(v.income).toLocaleString() : '', ' บาท/เดือน')}
+                    ${row('สภาพบ้าน', v.condition)}
+                    ${row('ผลคัดกรองความเสี่ยง', v.risk)}
+                    ${row('บันทึกจากครู', v.notes)}`;
+            }
+
+            document.getElementById('tvs-body').innerHTML = `
+                ${head('ข้อมูลส่วนตัว')}
+                ${row('เพศ', GENDER_LABELS[std.gender] || std.gender)}
+                ${row('วัน/เดือน/ปีเกิด', std.dob)}
+                ${row('อายุ', std.age, ' ปี')}
+                ${row('เลขบัตรประชาชน', std.idCard)}
+                ${row('เชื้อชาติ', std.ethnicity)}
+                ${row('สัญชาติ', std.nationality)}
+                ${row('ศาสนา', std.religion)}
+                ${row('ส่วนสูง', std.height, ' ซม.')}
+                ${row('น้ำหนัก', std.weight, ' กก.')}
+                ${row('โรคประจำตัว', std.chronicDisease)}
+
+                ${head('ครอบครัว & ที่อยู่')}
+                ${row('สถานภาพบิดา-มารดา', std.parentStatus === 'other' ? (std.parentStatusOther || 'อื่นๆ') : (PARENT_STATUS_LABELS[std.parentStatus] || ''))}
+                ${row('เบอร์นักเรียน', std.studentPhone)}
+                ${row('เบอร์ผู้ปกครอง', std.parentPhone)}
+                ${row('ที่อยู่บ้านเลขที่', std.homeAddress)}
+
+                ${head('การเดินทางมาโรงเรียน')}
+                ${row('ระยะทางจากบ้าน', std.distanceToSchool, ' กม.')}
+                ${row('วิธีเดินทาง', TRAVEL_LABELS[std.travelMethod] || std.travelMethod)}
+
+                ${head('ข้อมูลบิดา')}
+                ${parentBlock(f)}
+
+                ${head('ข้อมูลมารดา')}
+                ${parentBlock(m)}
+
+                ${visitHtml}
+            `;
+
+            document.getElementById('tvs-visit-btn').onclick = () => {
+                closeModal('modal-teacher-view-student');
+                openVisitForm(std.id);
+            };
+            openModal('modal-teacher-view-student');
         }
 
         function openVisitForm(stdId) {
