@@ -9,6 +9,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome 6 Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet (แผนที่ปักหมุดบ้าน) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <!-- Google Font: Prompt -->
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
@@ -214,6 +217,17 @@
             background-size: 300% 100%;
             animation: bgShift 6s linear infinite;
         }
+        .hv-map-box { position: relative; z-index: 0; isolation: isolate; }
+
+        .hv-mapwrap { position: relative; isolation: isolate; }
+        .hv-center-pin { position: absolute; left: 50%; top: 50%; width: 36px; height: 46px; margin-left: -18px; margin-top: -46px; z-index: 5; pointer-events: none; }
+        .hv-center-pin .hv-pin-svg { display: block; transition: transform .18s ease; filter: drop-shadow(0 3px 3px rgba(0,0,0,.3)); }
+        .hv-center-pin.lift .hv-pin-svg { transform: translateY(-14px); }
+        .hv-center-pin .hv-pin-shadow { position: absolute; left: 50%; bottom: -3px; width: 12px; height: 5px; margin-left: -6px; border-radius: 50%; background: rgba(0,0,0,.35); }
+        .hv-gps-btn { position: absolute; right: 10px; bottom: 28px; z-index: 6; width: 42px; height: 42px; border-radius: 9999px; background: #fff; color: #ee4d2d; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,.22); display: flex; align-items: center; justify-content: center; font-size: 17px; cursor: pointer; }
+        .hv-gps-btn:hover { background: #fff7ed; }
+        .hv-static-pin { background: transparent !important; border: 0 !important; }
+        .hv-static-pin svg { display: block; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
     </style>
 </head>
 <body class="h-full text-slate-800 antialiased flex flex-col min-h-screen">
@@ -702,7 +716,7 @@
                                 <th class="p-3.5">รหัส</th>
                                 <th class="p-3.5">ชื่อ - นามสกุล นักเรียน</th>
                                 <th class="p-3.5">ชั้น</th>
-                                <th class="p-3.5">ที่อยู่บ้าน</th>
+                                <th class="p-3.5">ตำแหน่งบ้าน</th>
                                 <th class="p-3.5">สถานะการเยี่ยม</th>
                                 <th class="p-3.5 text-center">ข้อมูลนักเรียน</th>
                                 <th class="p-3.5 text-center">บันทึกข้อมูลเยี่ยมบ้าน</th>
@@ -785,7 +799,7 @@
                     <label class="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
                         <i class="fa-solid fa-id-card text-indigo-600"></i> <span data-lk="wizard-title">ข้อมูลนักเรียน (กรอกด้วยตัวเอง)</span>
                     </label>
-                    <p class="text-[11px] text-slate-500 mb-3" data-lk-html="wizard-subtitle">กรอกข้อมูลให้ครบทั้ง 4 หน้า แล้วกด "บันทึกข้อมูลทั้งหมด" ในหน้าสุดท้าย</p>
+                    <p class="text-[11px] text-slate-500 mb-3" data-lk-html="wizard-subtitle">กรอกข้อมูลให้ครบทุกหน้า แล้วกด "บันทึกข้อมูลทั้งหมด" ในหน้าสุดท้าย</p>
 
                     <!-- Step Indicator -->
                     <div class="flex items-center justify-between mb-5 px-1" id="student-wizard-steps">
@@ -809,6 +823,18 @@
 
                     <!-- STEP 1: Personal info + Family info -->
                     <div class="student-step" data-step="1">
+                        <div class="flex items-start justify-between gap-3 mb-4">
+                            <p class="text-[11px] text-slate-400 pt-1 text-left leading-relaxed"><i class="fa-solid fa-circle-info"></i> <span data-lk="photo-hint">แนบรูปถ่ายนักเรียน (แสดงที่มุมขวาบน)</span></p>
+                            <div class="text-center shrink-0">
+                                <label for="hv-photo-file" class="relative block w-24 h-28 rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/60 hover:bg-indigo-50 cursor-pointer overflow-hidden transition shadow-sm">
+                                    <img id="hv-photo-img" class="hidden w-full h-full object-cover" alt="รูปนักเรียน">
+                                    <div id="hv-photo-empty" class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-indigo-500 text-[10px] font-medium"><i class="fa-solid fa-camera text-xl"></i><span data-lk="photo-label">เพิ่มรูปนักเรียน</span></div>
+                                </label>
+                                <input type="file" id="hv-photo-file" accept="image/*" class="hidden" onchange="hvPickPhoto(this,'photo')">
+                                <button type="button" id="hv-photo-remove" onclick="hvClearPhoto('photo')" class="hidden mt-1 text-[10px] text-rose-500 hover:underline"><i class="fa-solid fa-trash-can"></i> ลบรูป</button>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-3">
                             <div class="col-span-2">
                                 <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-name">ชื่อ - นามสกุล นักเรียน</span> <span class="text-rose-500">*</span></label>
@@ -889,10 +915,6 @@
                             <div class="col-span-2">
                                 <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-parent-phone">เบอร์โทรศัพท์ผู้ปกครอง</span></label>
                                 <input type="text" id="profile-std-parent-phone" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-indigo-500">
-                            </div>
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-address">ที่อยู่บ้านเลขที่</span></label>
-                                <input data-ph="std-address" type="text" id="profile-std-address" placeholder="เช่น 99/12 หมู่ 3 ถนนสุขุมวิท ตำบล/แขวง ... อำเภอ/เขต ... จังหวัด ... รหัสไปรษณีย์" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-indigo-500">
                             </div>
                         </div>
 
@@ -1037,6 +1059,8 @@
                         </div>
                     </div>
 
+                    <div id="student-extra-steps"></div>
+
                     <!-- Wizard Navigation -->
                     <div class="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
                         <button type="button" id="student-wizard-prev" onclick="studentWizardGo(-1)" class="px-4 py-2.5 rounded-xl text-xs font-medium border border-slate-300 text-slate-600 hover:bg-slate-50 transition flex items-center gap-1.5 invisible">
@@ -1082,18 +1106,13 @@
             <form onsubmit="handleStaffLogin(event)" class="space-y-4">
                 <input type="hidden" id="staff-login-role" value="teacher">
                 <div>
-                    <label id="staff-label-name" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">ชื่อครูประจำชั้น</label>
-                    <input type="text" id="staff-login-name" required placeholder="เช่น ครูสมชาย สายสอน"
-                        class="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
-                </div>
-                <div>
                     <label id="staff-label-code" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">รหัสครู (Teacher ID)</label>
                     <input type="password" id="staff-login-code" required placeholder="เช่น T001"
                         class="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
                 </div>
                 <div id="staff-login-alert" class="hidden p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
                     <i class="fa-solid fa-circle-exclamation text-base"></i>
-                    <span>ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง</span>
+                    <span>รหัสผ่านไม่ถูกต้อง</span>
                 </div>
                 <button type="submit" class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl shadow-md hover:shadow-lg transition duration-200 flex items-center justify-center gap-2">
                     <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ
@@ -1129,276 +1148,19 @@
 
     <div id="modal-edit-student" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
         <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl my-8">
-            <h3 class="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
-                <i class="fa-solid fa-pen-to-square text-blue-600"></i> แก้ไขข้อมูลนักเรียน
-            </h3>
-            <p class="text-xs text-slate-500 mb-4">แก้ไขได้ครบทุกหน้าเหมือนฟอร์มที่นักเรียนกรอกเอง (4 หน้า)</p>
-            <input type="hidden" id="edit-std-id">
-
-                    <!-- Step Indicator -->
-                    <div class="flex items-center justify-between mb-5 px-1" id="edit-wizard-steps">
-                        <div class="wizard-dot flex-1 text-center" data-step="1">
-                            <div class="step-circle mx-auto w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold">1</div>
-                            <p class="text-[10px] mt-1 font-medium"><span data-lk="tab-personal">ข้อมูลส่วนตัว</span></p>
-                        </div>
-                        <div class="wizard-dot flex-1 text-center" data-step="2">
-                            <div class="step-circle mx-auto w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold">2</div>
-                            <p class="text-[10px] mt-1 font-medium"><span data-lk="tab-travel">การเดินทาง</span></p>
-                        </div>
-                        <div class="wizard-dot flex-1 text-center" data-step="3">
-                            <div class="step-circle mx-auto w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold">3</div>
-                            <p class="text-[10px] mt-1 font-medium"><span data-lk="tab-father">ข้อมูลบิดา</span></p>
-                        </div>
-                        <div class="wizard-dot flex-1 text-center" data-step="4">
-                            <div class="step-circle mx-auto w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold">4</div>
-                            <p class="text-[10px] mt-1 font-medium"><span data-lk="tab-mother">ข้อมูลมารดา</span></p>
-                        </div>
-                    </div>
-
-                    <!-- STEP 1: Personal info + Family info -->
-                    <div class="edit-step" data-step="1">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-name">ชื่อ - นามสกุล นักเรียน</span> <span class="text-rose-500">*</span></label>
-                                <input data-ph="std-name" type="text" id="edit-p-std-name" placeholder="เช่น เด็กชายโกศล บุญมี" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-grade">ระดับชั้น ม.</span> <span class="text-rose-500">*</span></label>
-                                <select id="edit-p-std-grade" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="">-- เลือกระดับชั้น --</option>
-                                    <option value="1">มัธยมศึกษาปีที่ 1</option>
-                                    <option value="2">มัธยมศึกษาปีที่ 2</option>
-                                    <option value="3">มัธยมศึกษาปีที่ 3</option>
-                                    <option value="4">มัธยมศึกษาปีที่ 4</option>
-                                    <option value="5">มัธยมศึกษาปีที่ 5</option>
-                                    <option value="6">มัธยมศึกษาปีที่ 6</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-code">รหัสประจำตัวนักเรียน</span></label>
-                                <input data-ph="std-code" type="text" id="edit-p-std-code" placeholder="เช่น 03989 (ถ้ามี)" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-gender">เพศ</span></label>
-                                <select id="edit-p-std-gender" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="">-- เลือกเพศ --</option>
-                                    <option value="male">ชาย</option>
-                                    <option value="female">หญิง</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-idcard">เลขบัตรประชาชน</span></label>
-                                <input data-ph="std-idcard" type="text" maxlength="13" id="edit-p-std-idcard" placeholder="เลข 13 หลัก" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-dob">วัน/เดือน/ปีเกิด</span></label>
-                                <input type="date" id="edit-p-std-dob" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-age">อายุ (ปี)</span></label>
-                                <input type="number" min="0" id="edit-p-std-age" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-ethnicity">เชื้อชาติ</span></label>
-                                <input type="text" id="edit-p-std-ethnicity" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-nationality">สัญชาติ</span></label>
-                                <input type="text" id="edit-p-std-nationality" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-religion">ศาสนา</span></label>
-                                <input type="text" id="edit-p-std-religion" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-height">ส่วนสูง (ซม.)</span></label>
-                                <input type="number" min="0" id="edit-p-std-height" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-weight">น้ำหนัก (กก.)</span></label>
-                                <input type="number" min="0" id="edit-p-std-weight" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-disease">โรคประจำตัว</span></label>
-                                <input data-ph="std-disease" type="text" id="edit-p-std-disease" placeholder="ระบุโรคประจำตัว (ถ้าไม่มีให้ระบุว่า ไม่มี)" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-father">ชื่อบิดา</span></label>
-                                <input type="text" id="edit-p-std-father" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-mother">ชื่อมารดา</span></label>
-                                <input type="text" id="edit-p-std-mother" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-phone">เบอร์โทรศัพท์นักเรียน</span></label>
-                                <input type="text" id="edit-p-std-phone" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-parent-phone">เบอร์โทรศัพท์ผู้ปกครอง</span></label>
-                                <input type="text" id="edit-p-std-parent-phone" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-address">ที่อยู่บ้านเลขที่</span></label>
-                                <input data-ph="std-address" type="text" id="edit-p-std-address" placeholder="เช่น 99/12 หมู่ 3 ถนนสุขุมวิท ตำบล/แขวง ... อำเภอ/เขต ... จังหวัด ... รหัสไปรษณีย์" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-
-                        <!-- Family & Siblings Info -->
-                        <div class="mt-5 pt-4 border-t border-dashed border-slate-200">
-                            <label class="block text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5">
-                                <i class="fa-solid fa-people-roof text-indigo-600"></i> <span data-lk="heading-family">ข้อมูลครอบครัวและพี่น้อง</span>
-                            </label>
-                            <p class="text-[11px] font-semibold text-slate-600 mb-2"><span data-lk="heading-parent-status">สถานภาพบิดามารดา</span></p>
-                            <div class="grid grid-cols-2 gap-2 text-xs">
-                                <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer"><input type="radio" name="edit-parent-status" value="together" onchange="toggleEditParentStatusOther()"> <span data-lk="opt-together">อยู่ด้วยกัน</span></label>
-                                <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer"><input type="radio" name="edit-parent-status" value="separated" onchange="toggleEditParentStatusOther()"> <span data-lk="opt-separated">แยกกันอยู่</span></label>
-                                <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer"><input type="radio" name="edit-parent-status" value="divorced" onchange="toggleEditParentStatusOther()"> <span data-lk="opt-divorced">หย่าร้าง</span></label>
-                                <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer"><input type="radio" name="edit-parent-status" value="father_dead" onchange="toggleEditParentStatusOther()"> <span data-lk="opt-father_dead">บิดาเสียชีวิต</span></label>
-                                <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer"><input type="radio" name="edit-parent-status" value="mother_dead" onchange="toggleEditParentStatusOther()"> <span data-lk="opt-mother_dead">มารดาเสียชีวิต</span></label>
-                                <label class="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 cursor-pointer"><input type="radio" name="edit-parent-status" value="other" onchange="toggleEditParentStatusOther()"> <span data-lk="opt-other">อื่นๆ</span></label>
-                            </div>
-                            <div id="edit-parent-status-other-box" class="hidden mt-2">
-                                <input data-ph="std-parent-status-other" type="text" id="edit-p-std-parent-status-other" placeholder="ระบุสถานภาพบิดามารดา (อื่นๆ)" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- STEP 2: Travel Info -->
-                    <div class="edit-step hidden" data-step="2">
-                        <label class="block text-xs font-bold text-slate-800 mb-3 flex items-center gap-1.5">
-                            <i class="fa-solid fa-route text-indigo-600"></i> <span data-lk="heading-travel">ข้อมูลเดินทาง</span>
-                        </label>
-                        <div class="grid grid-cols-1 gap-3">
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-distance">ระยะทางจากบ้านถึงโรงเรียน (กม.)</span></label>
-                                <input type="number" min="0" step="0.1" id="edit-p-std-distance" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="std-travel">วิธีเดินทางมาโรงเรียน</span></label>
-                                <select id="edit-p-std-travel" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="">-- เลือกวิธีเดินทาง --</option>
-                                    <option value="car">รถยนต์</option>
-                                    <option value="motorcycle">รถมอเตอร์ไซค์</option>
-                                    <option value="schoolvan">รถรับส่ง</option>
-                                    <option value="walk">เดินเท้าเปล่า</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- STEP 3: Father Info -->
-                    <div class="edit-step hidden" data-step="3">
-                        <label class="block text-xs font-bold text-slate-800 mb-3 flex items-center gap-1.5">
-                            <i class="fa-solid fa-person text-indigo-600"></i> <span data-lk="heading-father">ข้อมูลบิดา</span>
-                        </label>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-name">ชื่อ-นามสกุลบิดา</span></label>
-                                <input type="text" id="edit-p-father-name" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-age">อายุ</span></label>
-                                <input type="number" min="0" id="edit-p-father-age" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-idcard">เลขบัตรประชาชน</span></label>
-                                <input type="text" maxlength="13" id="edit-p-father-idcard" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-ethnicity">เชื้อชาติ</span></label>
-                                <input type="text" id="edit-p-father-ethnicity" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-nationality">สัญชาติ</span></label>
-                                <input type="text" id="edit-p-father-nationality" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-religion">ศาสนา</span></label>
-                                <input type="text" id="edit-p-father-religion" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-phone">เบอร์โทรศัพท์</span></label>
-                                <input type="text" id="edit-p-father-phone" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-occupation">อาชีพ</span></label>
-                                <input type="text" id="edit-p-father-occupation" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-income">รายได้ต่อเดือน (บาท)</span></label>
-                                <input type="number" min="0" id="edit-p-father-income" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="father-workplace">สถานที่ทำงาน</span></label>
-                                <input type="text" id="edit-p-father-workplace" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- STEP 4: Mother Info -->
-                    <div class="edit-step hidden" data-step="4">
-                        <label class="block text-xs font-bold text-slate-800 mb-3 flex items-center gap-1.5">
-                            <i class="fa-solid fa-person-dress text-indigo-600"></i> <span data-lk="heading-mother">ข้อมูลมารดา</span>
-                        </label>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-name">ชื่อ-นามสกุลมารดา</span></label>
-                                <input type="text" id="edit-p-mother-name" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-age">อายุ</span></label>
-                                <input type="number" min="0" id="edit-p-mother-age" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-idcard">เลขบัตรประชาชน</span></label>
-                                <input type="text" maxlength="13" id="edit-p-mother-idcard" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-ethnicity">เชื้อชาติ</span></label>
-                                <input type="text" id="edit-p-mother-ethnicity" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-nationality">สัญชาติ</span></label>
-                                <input type="text" id="edit-p-mother-nationality" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-religion">ศาสนา</span></label>
-                                <input type="text" id="edit-p-mother-religion" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-phone">เบอร์โทรศัพท์</span></label>
-                                <input type="text" id="edit-p-mother-phone" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-occupation">อาชีพ</span></label>
-                                <input type="text" id="edit-p-mother-occupation" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-income">รายได้ต่อเดือน (บาท)</span></label>
-                                <input type="number" min="0" id="edit-p-mother-income" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div class="col-span-2">
-                                <label class="block text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="mother-workplace">สถานที่ทำงาน</span></label>
-                                <input type="text" id="edit-p-mother-workplace" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                        </div>
-                    </div>
-
-            <!-- Wizard Navigation -->
-            <div class="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
-                <button type="button" id="edit-wizard-prev" onclick="editWizardGo(-1)" class="px-4 py-2.5 rounded-xl text-xs font-medium border border-slate-300 text-slate-600 hover:bg-slate-50 transition flex items-center gap-1.5 invisible">
-                    <i class="fa-solid fa-arrow-left"></i> ก่อนหน้า
-                </button>
-                <div class="flex items-center gap-2">
-                    <button type="button" onclick="closeModal('modal-edit-student')" class="text-xs px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl">ยกเลิก</button>
-                    <button type="button" id="edit-wizard-next" onclick="editWizardGo(1)" class="px-4 py-2.5 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-900 text-white transition flex items-center gap-1.5">
-                        ถัดไป: ข้อมูลเดินทาง <i class="fa-solid fa-arrow-right"></i>
-                    </button>
-                    <button type="button" id="edit-wizard-save" onclick="confirmEditStudent()" class="hidden px-4 py-2.5 rounded-xl text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition items-center gap-1.5">
-                        <i class="fa-solid fa-floppy-disk"></i> บันทึกการแก้ไข
-                    </button>
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square text-blue-600"></i> แก้ไขข้อมูลนักเรียน
+                    </h3>
+                    <p class="text-xs text-slate-500">หน้าตาเหมือนแบบฟอร์มที่นักเรียนกรอกเอง ครบทุกหน้า (รวมรูปนักเรียน รูปบ้าน ตำแหน่งบ้าน และช่องที่เพิ่มเอง) — กด "บันทึกข้อมูลทั้งหมด" ในหน้าสุดท้ายเพื่อบันทึก</p>
                 </div>
+                <button type="button" onclick="closeModal('modal-edit-student')" title="ปิดโดยไม่บันทึก" class="shrink-0 w-8 h-8 rounded-full text-slate-500 hover:bg-slate-100"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <input type="hidden" id="edit-std-id">
+            <div id="edit-student-host"></div>
+            <div class="flex justify-end mt-4">
+                <button type="button" onclick="closeModal('modal-edit-student')" class="text-xs px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl">ปิดโดยไม่บันทึก</button>
             </div>
         </div>
     </div>
@@ -1409,8 +1171,8 @@
             <h3 class="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
                 <i class="fa-solid fa-pen-ruler text-blue-600"></i> ปรับแต่งข้อความในฟอร์มนักเรียน
             </h3>
-            <p class="text-xs text-slate-500 mb-4">แก้ไขได้ทุกหัวข้อและทุกช่อง ปล่อยว่างไว้เพื่อใช้ข้อความเริ่มต้น — บันทึกแล้วมีผลทันทีทั้งหน้าเข้าสู่ระบบนักเรียนและฟอร์มกรอกข้อมูล</p>
-            <div id="field-text-groups" class="space-y-5 max-h-[65vh] overflow-y-auto pr-1"></div>
+            <p class="text-xs text-slate-500 mb-4">แก้ข้อความได้ทุกหัวข้อและทุกช่อง เพิ่ม/ลบช่องกรอกข้อมูลได้ และเพิ่มหน้าใหม่ได้ (ปล่อยข้อความว่างไว้เพื่อใช้ค่าเริ่มต้น) — บันทึกแล้วมีผลทันทีกับฟอร์มนักเรียน</p>
+            <div class="max-h-[65vh] overflow-y-auto pr-1"><div id="field-text-groups" class="space-y-5"></div><div id="field-custom-form" class="mt-6 pt-5 border-t border-dashed border-slate-300"></div></div>
             <div class="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
                 <button type="button" onclick="resetFieldTextSettings()" class="text-xs px-4 py-2.5 text-rose-600 hover:bg-rose-50 rounded-xl font-medium flex items-center gap-1.5">
                     <i class="fa-solid fa-rotate-left"></i> คืนค่าเริ่มต้นทั้งหมด
@@ -2120,6 +1882,9 @@
             placeholderTeacherCode: 'เช่น T001',
             placeholderAdminName: 'เช่น โยฮัน',
             placeholderAdminCode: 'เช่น 112233',
+            customForm: { pages: [], fields: [] }, // หน้า/ช่องกรอกข้อมูลที่แอดมินเพิ่มเอง
+            hiddenFields: [], // key ของช่องเดิมที่แอดมินลบ (ซ่อน)
+            formLayout: {}, // การจัดหน้า: ลำดับหน้า / ช่องอยู่หน้าไหน / ลำดับช่อง
             studentFieldText: {} // { lk:{key:text}, html:{key:text}, ph:{key:text} } — ข้อความที่แอดมินปรับแต่งเอง
         };
 
@@ -2150,7 +1915,7 @@
                     key: GAS_CONFIG.KEY,
                     action: 'syncAll',
                     payload: {
-                        students: db.students,
+                        students: db.students.map(st => Object.assign({}, st, { extraJson: JSON.stringify(st.extra || {}) })),
                         teachers: db.teachers,
                         admins: db.admins,
                         settings: db.settings
@@ -2186,6 +1951,7 @@
                         room: Number(s.room) || 1,
                         visitStatus: s.visitStatus || 'pending',
                         homeAddress: s.homeAddress || s.locationPin || '',
+                        ...hvMergeExtras(s, db.students.find(x => x.id === String(s.id))),
                         age: s.age || '',
                         height: s.height || '',
                         fatherName: s.fatherName || '',
@@ -2323,12 +2089,10 @@
             { key: 'login-subtitle', kind: 'html', group: 'เข้าสู่ระบบนักเรียน', def: `กรอกชื่อ-นามสกุล และรหัสประจำตัวนักเรียน (รหัสบัตรนักเรียน) ให้ตรงกับที่โรงเรียนกำหนด เพื่อกรอก/แก้ไขข้อมูลของตนเอง` },
             { key: 'login-name-label', kind: 'ph', group: 'เข้าสู่ระบบนักเรียน', def: `เช่น เด็กชายโกศล บุญมี` },
             { key: 'login-code-label', kind: 'ph', group: 'เข้าสู่ระบบนักเรียน', def: `เช่น 03989` },
-            { key: 'staff-teacher-name', kind: 'lk', group: 'เข้าสู่ระบบครู / แอดมิน', def: `ชื่อครูประจำชั้น` },
-            { key: 'staff-teacher-name', kind: 'ph', group: 'เข้าสู่ระบบครู / แอดมิน', def: `เช่น ครูสมชาย สายสอน` },
+            { key: 'staff-teacher-name', hideInModal: true, kind: 'lk', group: 'เข้าสู่ระบบครู / แอดมิน', def: `ชื่อครูประจำชั้น` },
+            { key: 'staff-teacher-name', hideInModal: true, kind: 'ph', group: 'เข้าสู่ระบบครู / แอดมิน', def: `เช่น ครูสมชาย สายสอน` },
             { key: 'staff-teacher-code', kind: 'lk', group: 'เข้าสู่ระบบครู / แอดมิน', def: `รหัสครู (Teacher ID)` },
             { key: 'staff-teacher-code', kind: 'ph', group: 'เข้าสู่ระบบครู / แอดมิน', def: `เช่น T001` },
-            { key: 'staff-admin-name', kind: 'lk', group: 'เข้าสู่ระบบครู / แอดมิน', def: `ชื่อผู้ดูแลระบบ (Admin Name)` },
-            { key: 'staff-admin-name', kind: 'ph', group: 'เข้าสู่ระบบครู / แอดมิน', def: `เช่น โยฮัน` },
             { key: 'staff-admin-code', kind: 'lk', group: 'เข้าสู่ระบบครู / แอดมิน', def: `รหัสผ่านแอดมิน` },
             { key: 'staff-admin-code', kind: 'ph', group: 'เข้าสู่ระบบครู / แอดมิน', def: `เช่น 112233` },
             { key: 'wizard-title', kind: 'lk', group: 'หัวข้อฟอร์มหลัก', def: `ข้อมูลนักเรียน (กรอกด้วยตัวเอง)` },
@@ -2336,7 +2100,7 @@
             { key: 'tab-travel', kind: 'lk', group: 'หัวข้อฟอร์มหลัก', def: `การเดินทาง` },
             { key: 'tab-father', kind: 'lk', group: 'หัวข้อฟอร์มหลัก', def: `ข้อมูลบิดา` },
             { key: 'tab-mother', kind: 'lk', group: 'หัวข้อฟอร์มหลัก', def: `ข้อมูลมารดา` },
-            { key: 'wizard-subtitle', kind: 'html', group: 'หัวข้อฟอร์มหลัก', def: `กรอกข้อมูลให้ครบทั้ง 4 หน้า แล้วกด "บันทึกข้อมูลทั้งหมด" ในหน้าสุดท้าย` },
+            { key: 'wizard-subtitle', kind: 'html', group: 'หัวข้อฟอร์มหลัก', def: `กรอกข้อมูลให้ครบทุกหน้า แล้วกด "บันทึกข้อมูลทั้งหมด" ในหน้าสุดท้าย` },
             { key: 'std-name', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `ชื่อ - นามสกุล นักเรียน` },
             { key: 'std-grade', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `ระดับชั้น ม.` },
             { key: 'std-code', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `รหัสประจำตัวนักเรียน` },
@@ -2354,12 +2118,12 @@
             { key: 'std-mother', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `ชื่อมารดา` },
             { key: 'std-phone', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `เบอร์โทรศัพท์นักเรียน` },
             { key: 'std-parent-phone', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `เบอร์โทรศัพท์ผู้ปกครอง` },
-            { key: 'std-address', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `ที่อยู่บ้านเลขที่` },
+            { key: 'std-address', hideInModal: true, kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `ที่อยู่บ้านเลขที่` },
             { key: 'std-name', kind: 'ph', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `เช่น เด็กชายโกศล บุญมี` },
             { key: 'std-code', kind: 'ph', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `เช่น 03989 (ถ้ามี)` },
             { key: 'std-idcard', kind: 'ph', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `เลข 13 หลัก` },
             { key: 'std-disease', kind: 'ph', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `ระบุโรคประจำตัว (ถ้าไม่มีให้ระบุว่า ไม่มี)` },
-            { key: 'std-address', kind: 'ph', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `เช่น 99/12 หมู่ 3 ถนนสุขุมวิท ตำบล/แขวง ... อำเภอ/เขต ... จังหวัด ... รหัสไปรษณีย์` },
+            { key: 'std-address', hideInModal: true, kind: 'ph', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `เช่น 99/12 หมู่ 3 ถนนสุขุมวิท ตำบล/แขวง ... อำเภอ/เขต ... จังหวัด ... รหัสไปรษณีย์` },
             { key: 'heading-family', kind: 'lk', group: 'หน้า 1 · ข้อมูลครอบครัว', def: `ข้อมูลครอบครัวและพี่น้อง` },
             { key: 'heading-parent-status', kind: 'lk', group: 'หน้า 1 · ข้อมูลครอบครัว', def: `สถานภาพบิดามารดา` },
             { key: 'opt-together', kind: 'lk', group: 'หน้า 1 · ข้อมูลครอบครัว', def: `อยู่ด้วยกัน` },
@@ -2394,6 +2158,14 @@
             { key: 'mother-income', kind: 'lk', group: 'หน้า 4 · ข้อมูลมารดา', def: `รายได้ต่อเดือน (บาท)` },
             { key: 'mother-workplace', kind: 'lk', group: 'หน้า 4 · ข้อมูลมารดา', def: `สถานที่ทำงาน` },
             { key: 'std-parent-status-other', kind: 'ph', group: 'อื่นๆ', def: `ระบุสถานภาพบิดามารดา (อื่นๆ)` },
+            { key: 'tab-house', kind: 'lk', group: 'หัวข้อฟอร์มหลัก', def: `สภาพบ้าน` },
+            { key: 'photo-hint', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `แนบรูปถ่ายนักเรียน (แสดงที่มุมขวาบน)` },
+            { key: 'photo-label', kind: 'lk', group: 'หน้า 1 · ข้อมูลส่วนตัว', def: `เพิ่มรูปนักเรียน` },
+            { key: 'heading-house', kind: 'lk', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `รูปสภาพบ้านและตำแหน่งบ้าน` },
+            { key: 'house-out-label', kind: 'lk', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `รูปนอกบ้าน` },
+            { key: 'house-in-label', kind: 'lk', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `รูปข้างในบ้าน` },
+            { key: 'house-map-label', kind: 'lk', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `ปักหมุดตำแหน่งบ้านของตนเอง` },
+            { key: 'house-map-hint', kind: 'html', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `ลากแผนที่ หรือแตะบนแผนที่ ให้หมุดสีส้มตรงกลางชี้ที่บ้านของตนเอง (เหมือนปักหมุดที่อยู่ใน Shopee) — ระบบจะแสดงที่อยู่ของจุดนั้นให้ · หรือพิมพ์ค้นหาสถานที่ · หรือกดปุ่มเป้าเพื่อใช้ตำแหน่งปัจจุบัน` },
         ];
 
         // STUDENT DATA-ENTRY WIZARD (4 steps): personal+family / travel / father / mother
@@ -2409,8 +2181,1077 @@
             walk: 'เดิน', bike: 'จักรยาน', motorcycle: 'รถจักรยานยนต์', car: 'รถยนต์ส่วนตัว',
             school_bus: 'รถรับส่งนักเรียน', public: 'รถโดยสารประจำทาง', other: 'อื่นๆ'
         };
-        let editWizardStep = 1;
         let addWizardStep = 1;
+
+        // =====================================================================
+        // ส่วนขยาย: ตัวจัดหน้าฟอร์มนักเรียน (ย้าย/ลบ/แก้ชื่อได้ทุกช่อง) + แทรกรูปภาพในแต่ละหน้า
+        //           + แผนที่ปักหมุดแบบ Shopee (หมุดอยู่กลางจอ ลากแผนที่ให้ตรงบ้าน) + คัดลอกพิกัด
+        // =====================================================================
+        const HV_INPUT_CLS = 'w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-indigo-500';
+        let HV_LABELS = [''];
+        let HV_TOTAL_STEPS = 5;
+        const HV_PROTECTED_KEYS = ['std-name', 'std-grade']; // ระบบต้องใช้ชื่อ+ระดับชั้นในการบันทึก/ค้นหานักเรียน จึงลบไม่ได้ (แต่แก้ชื่อหัวข้อและย้ายหน้าได้)
+        const HV_PAGE_TITLE_KEY = { '1': 'tab-personal', '2': 'tab-travel', '3': 'tab-father', '4': 'tab-mother', '5': 'tab-house' };
+        const hvState = { photo: '', houseOut: '', houseIn: '', lat: null, lng: null, imgs: {}, address: '', addrLoading: false, labelFor: null };
+        let hvMap = null, hvViewMap = null, hvMapTouched = false;
+        let HV_REG = null;
+
+        function hvAttr(s) { return escapeHtml(s === undefined || s === null ? '' : String(s)).replace(/"/g, '&quot;'); }
+        function hvHasPin(std) { return std && std.homeLat !== undefined && std.homeLat !== null && std.homeLat !== '' && !isNaN(Number(std.homeLat)) && std.homeLng !== undefined && std.homeLng !== null && std.homeLng !== '' && !isNaN(Number(std.homeLng)); }
+        function hvMapLink(std) { return 'https://www.google.com/maps?q=' + Number(std.homeLat) + ',' + Number(std.homeLng); }
+
+        // ---------- คัดลอกข้อความ (พิกัด / ลิงก์ Google Maps) ----------
+        function hvCopyFallback(text, done) {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+            ta.remove();
+            if (ok) done(); else window.prompt('คัดลอกข้อความนี้ (กด Ctrl+C):', text);
+        }
+        function hvCopyText(text, okMsg) {
+            const done = () => showToast(okMsg || 'คัดลอกแล้ว', 'success');
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(done).catch(() => hvCopyFallback(text, done));
+            } else {
+                hvCopyFallback(text, done);
+            }
+        }
+        function hvCopyPinCoords(lat, lng) { hvCopyText(Number(lat).toFixed(6) + ', ' + Number(lng).toFixed(6), 'คัดลอกพิกัดแล้ว — วางในช่องค้นหาของ Google Maps ได้เลย'); }
+        function hvCopyPinLink(lat, lng) { hvCopyText('https://www.google.com/maps?q=' + Number(lat) + ',' + Number(lng), 'คัดลอกลิงก์ Google Maps แล้ว'); }
+
+        // ---------- ข้อมูลหน้า/ช่องที่แอดมินปรับแต่ง ----------
+        function hvCustomForm() {
+            const cf = db.settings.customForm || {};
+            return { pages: Array.isArray(cf.pages) ? cf.pages : [], fields: Array.isArray(cf.fields) ? cf.fields : [] };
+        }
+        function hvHiddenKeys() { return Array.isArray(db.settings.hiddenFields) ? db.settings.hiddenFields : []; }
+        function hvLayoutCfg() {
+            const l = db.settings.formLayout || {};
+            return { pageOrder: Array.isArray(l.pageOrder) ? l.pageOrder : null, placement: l.placement || {}, order: l.order || {} };
+        }
+        function hvPageTitle(pid) {
+            const k = HV_PAGE_TITLE_KEY[pid];
+            if (k) return ftext(k);
+            const p = hvCustomForm().pages.find(x => x.id === pid);
+            return p ? (p.title || 'หน้าเพิ่มเติม') : '';
+        }
+        function hvPageIds() {
+            const all = ['1', '2', '3', '4', '5'].concat(hvCustomForm().pages.map(p => p.id));
+            const cfg = hvLayoutCfg();
+            if (!cfg.pageOrder) return all;
+            const seen = [];
+            cfg.pageOrder.forEach(id => { if (all.includes(id) && !seen.includes(id)) seen.push(id); });
+            return seen.length ? seen : ['1'];
+        }
+        function hvDefaultPageOf(key) {
+            if (key.indexOf('cf:') === 0) {
+                const f = hvCustomForm().fields.find(x => 'cf:' + x.id === key);
+                return f ? String(f.page) : '1';
+            }
+            return HV_REG.items[key] ? HV_REG.items[key].defPage : '1';
+        }
+        // คำนวณว่าแต่ละหน้ามีรายการอะไรบ้างตามลำดับ (รวมช่องที่ถูกซ่อนด้วย)
+        function hvComputeLayout(pageIds) {
+            hvInitRegistry();
+            const cfg = hvLayoutCfg();
+            const keys = HV_REG.keys.concat(hvCustomForm().fields.map(f => 'cf:' + f.id));
+            const res = {}; pageIds.forEach(p => { res[p] = []; });
+            const pageOf = {};
+            keys.forEach(k => {
+                let p = cfg.placement[k] || hvDefaultPageOf(k);
+                if (!res[p]) p = pageIds[0];
+                pageOf[k] = p;
+            });
+            pageIds.forEach(p => {
+                const saved = (cfg.order[p] || []).filter(k => pageOf[k] === p && keys.includes(k));
+                const rest = keys.filter(k => pageOf[k] === p && !saved.includes(k));
+                res[p] = saved.concat(rest);
+            });
+            return res;
+        }
+
+        // ---------- ทะเบียนช่องเดิมของระบบ (สแกนจาก HTML ครั้งเดียว แล้วย้าย element ได้อิสระ) ----------
+        function hvMakeEl(html) { const d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstElementChild; }
+        const HV_PIN_SVG = '<svg class="hv-pin-svg" width="36" height="46" viewBox="0 0 36 46" xmlns="http://www.w3.org/2000/svg"><path d="M18 45C18 45 3 28.5 3 17.5a15 15 0 0 1 30 0C33 28.5 18 45 18 45z" fill="#ee4d2d" stroke="#fff" stroke-width="2.2"/><circle cx="18" cy="17.5" r="6" fill="#fff"/></svg>';
+
+        function hvPhotoSlotHtml(key, labelKey) {
+            return `<div>
+                <p class="text-[11px] font-semibold text-slate-600 mb-1"><span data-lk="${labelKey}"></span></p>
+                <label for="hv-${key}-file" class="relative block w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/60 hover:bg-indigo-50 cursor-pointer overflow-hidden transition">
+                    <img id="hv-${key}-img" class="hidden w-full h-full object-cover" alt="">
+                    <div id="hv-${key}-empty" class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-indigo-500 text-[11px] font-medium"><i class="fa-solid fa-image text-2xl"></i><span>แตะเพื่อเลือก/ถ่ายรูป</span></div>
+                </label>
+                <input type="file" id="hv-${key}-file" accept="image/*" class="hidden" onchange="hvPickPhoto(this,'${key}')">
+                <button type="button" id="hv-${key}-remove" onclick="hvClearPhoto('${key}')" class="hidden mt-1 text-[10px] text-rose-500 hover:underline"><i class="fa-solid fa-trash-can"></i> ลบรูป</button>
+            </div>`;
+        }
+        function hvMapBlockHtml() {
+            return `<div class="col-span-2">
+                <p class="text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1.5"><i class="fa-solid fa-location-dot text-rose-500"></i> <span data-lk="house-map-label"></span></p>
+                <p class="text-[10px] text-slate-400 mb-2 leading-relaxed" data-lk-html="house-map-hint"></p>
+                <div class="flex gap-2 mb-2">
+                    <input id="hv-map-search" type="text" placeholder="ค้นหาชื่อหมู่บ้าน / ถนน / ตำบล" class="${HV_INPUT_CLS} flex-1" onkeydown="if(event.key==='Enter'){event.preventDefault();hvSearchPlace();}">
+                    <button type="button" onclick="hvSearchPlace()" class="shrink-0 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs"><i class="fa-solid fa-magnifying-glass"></i></button>
+                </div>
+                <div id="hv-search-results" class="hidden mb-2 rounded-xl border border-slate-200 bg-white overflow-hidden text-[11px] max-h-44 overflow-y-auto"></div>
+                <div class="hv-mapwrap">
+                    <div id="hv-map" class="hv-map-box w-full h-72 rounded-2xl border border-slate-200 bg-slate-100"></div>
+                    <div id="hv-center-pin" class="hv-center-pin" aria-hidden="true">${HV_PIN_SVG}<span class="hv-pin-shadow"></span></div>
+                    <button type="button" onclick="hvLocateMe()" class="hv-gps-btn" title="ใช้ตำแหน่งปัจจุบันของฉัน"><i class="fa-solid fa-crosshairs"></i></button>
+                </div>
+                <p id="hv-map-coords" class="text-[11px] text-slate-500 mt-2 leading-relaxed"></p>
+                <p id="hv-map-address" class="hidden text-[11px] text-slate-600 mt-1.5 leading-relaxed p-2.5 rounded-xl bg-slate-50 border border-slate-200"></p>
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <button type="button" onclick="hvConfirmPin()" class="text-[11px] px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center gap-1.5"><i class="fa-solid fa-check"></i> ยืนยันตำแหน่งบ้านที่หมุดชี้</button>
+                    <button type="button" onclick="hvClearPin()" class="text-[11px] px-3 py-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium flex items-center gap-1.5"><i class="fa-solid fa-eraser"></i> ลบหมุด</button>
+                </div>
+            </div>`;
+        }
+
+        function hvInitRegistry() {
+            if (HV_REG) return;
+            const panel = document.getElementById('student-form-panel');
+            const extraHost = document.getElementById('student-extra-steps');
+            const holding = document.createElement('div');
+            holding.id = 'hv-holding'; holding.className = 'hidden';
+            extraHost.parentNode.insertBefore(holding, extraHost);
+
+            const reg = { items: {}, keys: [] };
+            const add = (key, el, kind, defPage, labelKey) => {
+                reg.items[key] = { key: key, el: el, kind: kind, defPage: defPage, labelKey: labelKey };
+                reg.keys.push(key);
+            };
+
+            ['1', '2', '3', '4'].forEach(p => {
+                const step = panel.querySelector(`.student-step[data-step="${p}"]`);
+                if (!step) return;
+                step.id = 'hv-page-' + p;
+                const heading = step.querySelector(':scope > label');
+                if (p === '1') {
+                    const photoBox = step.firstElementChild;
+                    if (photoBox) { photoBox.classList.add('col-span-2'); add('blk-photo', photoBox, 'block', '1', 'photo-label'); }
+                }
+                step.querySelectorAll('input[id^="profile-"], select[id^="profile-"]').forEach(inp => {
+                    if (inp.type === 'radio' || inp.id === 'profile-std-parent-status-other') return;
+                    const wrap = inp.parentElement;
+                    const span = wrap && wrap.querySelector('[data-lk]');
+                    if (!span) return;
+                    add(span.dataset.lk, wrap, 'field', p, span.dataset.lk);
+                });
+                if (p === '1') {
+                    const otherBox = document.getElementById('parent-status-other-box');
+                    if (otherBox && otherBox.parentElement) {
+                        const fam = otherBox.parentElement;
+                        fam.classList.add('col-span-2');
+                        add('blk-family', fam, 'block', '1', 'heading-family');
+                    }
+                }
+                // ย้ายของทั้งหมดของหน้านี้ไปถังพัก แล้วเหลือเฉพาะหัวข้อหน้า + กริดว่าง
+                Object.values(reg.items).forEach(it => { if (it.defPage === p) holding.appendChild(it.el); });
+                Array.from(step.children).forEach(ch => { if (ch !== heading) ch.remove(); });
+                const grid = document.createElement('div');
+                grid.className = 'hv-grid grid grid-cols-2 gap-3';
+                step.appendChild(grid);
+            });
+
+            // หน้า 5: สภาพบ้าน + ตำแหน่งบ้าน (สร้างเป็นบล็อกที่ย้าย/ลบได้เหมือนช่องอื่น)
+            const s5 = hvMakeEl(`<div class="student-step hidden" data-step="0" id="hv-page-5">
+                <label class="block text-xs font-bold text-slate-800 mb-3 flex items-center gap-1.5"><i class="fa-solid fa-house-chimney text-indigo-600"></i> <span data-lk="heading-house"></span></label>
+                <div class="hv-grid grid grid-cols-2 gap-3"></div></div>`);
+            holding.parentNode.insertBefore(s5, holding);
+            add('blk-houseOut', hvMakeEl(hvPhotoSlotHtml('houseOut', 'house-out-label')), 'block', '5', 'house-out-label');
+            add('blk-houseIn', hvMakeEl(hvPhotoSlotHtml('houseIn', 'house-in-label')), 'block', '5', 'house-in-label');
+            add('blk-map', hvMakeEl(hvMapBlockHtml()), 'block', '5', 'house-map-label');
+            ['blk-houseOut', 'blk-houseIn', 'blk-map'].forEach(k => holding.appendChild(reg.items[k].el));
+
+            HV_REG = reg;
+        }
+
+        // ---------- ช่องที่แอดมินเพิ่มเอง (ข้อความ / รูปภาพ) ----------
+        function hvCustomImageHtml(f) {
+            const id = f.id;
+            return `<div class="col-span-2 hv-custom-el">
+                <p class="text-[11px] font-semibold text-slate-600 mb-1"><i class="fa-solid fa-image text-indigo-500"></i> ${escapeHtml(f.label || 'รูปภาพ')}</p>
+                <label for="hv-cimg-file-${id}" class="relative block w-full max-w-sm aspect-[4/3] rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/60 hover:bg-indigo-50 cursor-pointer overflow-hidden transition">
+                    <img data-cimg-img="${id}" class="hidden w-full h-full object-cover" alt="">
+                    <div data-cimg-empty="${id}" class="absolute inset-0 flex flex-col items-center justify-center gap-1 text-indigo-500 text-[11px] font-medium"><i class="fa-solid fa-image text-2xl"></i><span>แตะเพื่อเลือก/ถ่ายรูป</span></div>
+                </label>
+                <input type="file" id="hv-cimg-file-${id}" accept="image/*" class="hidden" onchange="hvPickCustomImage(this,'${id}')">
+                <button type="button" data-cimg-remove="${id}" onclick="hvClearCustomImage('${id}')" class="hidden mt-1 text-[10px] text-rose-500 hover:underline"><i class="fa-solid fa-trash-can"></i> ลบรูป</button>
+            </div>`;
+        }
+        function hvBuildCustomEl(f) {
+            if (f.type === 'image') return hvMakeEl(hvCustomImageHtml(f));
+            return hvMakeEl(`<div class="hv-custom-el"><label class="block text-[11px] font-semibold text-slate-600 mb-1">${escapeHtml(f.label || 'ช่องกรอกข้อมูล')}</label>
+                <input type="text" data-cf="${hvAttr(f.id)}" placeholder="${hvAttr(f.placeholder)}" class="${HV_INPUT_CLS}"></div>`);
+        }
+
+        // ---------- วางทุกอย่างลงหน้าตามที่แอดมินจัดไว้ ----------
+        function hvApplyLayout() {
+            hvInitRegistry();
+            const panel = document.getElementById('student-form-panel');
+            const host = document.getElementById('student-extra-steps');
+            const holding = document.getElementById('hv-holding');
+            const dots = document.getElementById('student-wizard-steps');
+            if (!panel || !host || !holding || !dots) return;
+
+            const oldVals = {};
+            panel.querySelectorAll('[data-cf]').forEach(el => { oldVals[el.dataset.cf] = el.value; });
+
+            const cf = hvCustomForm();
+            const pageIds = hvPageIds();
+            const layout = hvComputeLayout(pageIds);
+            const hidden = hvHiddenKeys();
+
+            // 1) เก็บช่องทั้งหมดของระบบไว้ในถังพักก่อน (ยังอยู่ใน DOM ค่าที่กรอกไม่หาย)
+            Object.values(HV_REG.items).forEach(it => holding.appendChild(it.el));
+            host.innerHTML = '';
+            ['1', '2', '3', '4', '5'].forEach(p => {
+                const el = document.getElementById('hv-page-' + p);
+                if (!el) return;
+                el.dataset.step = '0'; el.classList.add('hidden');
+                const g = el.querySelector('.hv-grid'); if (g) g.innerHTML = '';
+            });
+
+            // 2) สร้างหน้าตามลำดับใหม่ แล้ววางช่องลงกริด
+            HV_LABELS = [''];
+            pageIds.forEach((pid, i) => {
+                let stepEl = document.getElementById('hv-page-' + pid);
+                if (!HV_PAGE_TITLE_KEY[pid]) {
+                    stepEl = hvMakeEl(`<div class="student-step hidden" data-step="0" id="hv-page-${pid}">
+                        <label class="block text-xs font-bold text-slate-800 mb-3 flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-indigo-600"></i> <span class="hv-page-title"></span></label>
+                        <div class="hv-grid grid grid-cols-2 gap-3"></div></div>`);
+                    stepEl.querySelector('.hv-page-title').textContent = hvPageTitle(pid);
+                    host.appendChild(stepEl);
+                }
+                if (!stepEl) return;
+                stepEl.dataset.step = String(i + 1);
+                HV_LABELS.push(hvPageTitle(pid));
+                const grid = stepEl.querySelector('.hv-grid');
+                (layout[pid] || []).forEach(key => {
+                    if (key.indexOf('cf:') === 0) {
+                        const f = cf.fields.find(x => 'cf:' + x.id === key);
+                        if (f) grid.appendChild(hvBuildCustomEl(f));
+                    } else if (!hidden.includes(key) && HV_REG.items[key]) {
+                        grid.appendChild(HV_REG.items[key].el);
+                    }
+                });
+                if (!grid.children.length) {
+                    grid.innerHTML = '<p class="col-span-2 text-[11px] text-slate-400 py-4 text-center">หน้านี้ยังไม่มีช่องกรอกข้อมูล</p>';
+                }
+            });
+
+            HV_TOTAL_STEPS = pageIds.length;
+            if (studentWizardStep > HV_TOTAL_STEPS) studentWizardStep = HV_TOTAL_STEPS;
+
+            dots.innerHTML = HV_LABELS.slice(1).map((lb, i) =>
+                `<div class="wizard-dot flex-1 text-center" data-step="${i + 1}"><div class="step-circle mx-auto w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold">${i + 1}</div><p class="text-[10px] mt-1 font-medium">${escapeHtml(lb)}</p></div>`
+            ).join('');
+
+            panel.querySelectorAll('[data-cf]').forEach(el => { if (oldVals[el.dataset.cf] !== undefined) el.value = oldVals[el.dataset.cf]; });
+            hvRefreshMedia();
+        }
+        function hvRebuildStudentForm() { hvApplyLayout(); }
+
+        // ใช้กับกล่องเพิ่มนักเรียนของแอดมิน (ยังเป็นฟอร์มแบบ 4 หน้าเดิม) — ซ่อนช่องที่ถูกลบ
+        function hvApplyHiddenFields() {
+            const hidden = hvHiddenKeys();
+            document.querySelectorAll('#modal-add-student [data-lk]').forEach(el => {
+                const key = el.dataset.lk;
+                if (HV_PROTECTED_KEYS.includes(key) || !/^(std|father|mother)-/.test(key)) return;
+                const lab = el.closest('label');
+                const w = lab && lab.parentElement && lab.parentElement.querySelector('input,select,textarea') ? lab.parentElement : null;
+                if (w) w.classList.toggle('hidden', hidden.includes(key));
+            });
+        }
+
+        // ---------- รูปภาพ (ย่อขนาดอัตโนมัติ) ----------
+        function hvCompress(file, steps, limit) {
+            return new Promise((resolve, reject) => {
+                const fr = new FileReader();
+                fr.onerror = reject;
+                fr.onload = () => {
+                    const img = new Image();
+                    img.onerror = reject;
+                    img.onload = () => {
+                        let out = '';
+                        for (const [max, q] of steps) {
+                            const k = Math.min(1, max / Math.max(img.width, img.height));
+                            const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+                            const c = document.createElement('canvas');
+                            c.width = w; c.height = h;
+                            const ctx = c.getContext('2d');
+                            ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+                            ctx.drawImage(img, 0, 0, w, h);
+                            out = c.toDataURL('image/jpeg', q);
+                            if (out.length <= limit) break;
+                        }
+                        resolve(out);
+                    };
+                    img.src = fr.result;
+                };
+                fr.readAsDataURL(file);
+            });
+        }
+        const HV_HOUSE_MEDIA = { steps: [[720, .62], [640, .55], [560, .5], [480, .45], [400, .4], [320, .35]], limit: 45000 };
+        // รูปที่แอดมินเพิ่มเองเก็บรวมใน JSON เดียวกับช่องอื่น จึงย่อให้เล็กกว่า
+        const HV_CUSTOM_MEDIA = { steps: [[520, .5], [440, .45], [360, .4], [300, .35], [240, .3]], limit: 22000 };
+        const HV_MEDIA = {
+            photo: { steps: [[320, .72], [280, .62], [240, .52], [200, .45]], limit: 30000 },
+            houseOut: HV_HOUSE_MEDIA,
+            houseIn: HV_HOUSE_MEDIA
+        };
+        async function hvPickPhoto(input, key) {
+            const f = input.files && input.files[0];
+            if (!f) return;
+            if (!/^image\//.test(f.type)) { showToast('กรุณาเลือกไฟล์รูปภาพเท่านั้น', 'error'); input.value = ''; return; }
+            try {
+                hvState[key] = await hvCompress(f, HV_MEDIA[key].steps, HV_MEDIA[key].limit);
+                hvRefreshMedia();
+            } catch (e) {
+                showToast('อ่านรูปไม่สำเร็จ ลองเลือกรูปอื่นอีกครั้ง', 'error');
+            }
+            input.value = '';
+        }
+        function hvClearPhoto(key) { hvState[key] = ''; hvRefreshMedia(); }
+        async function hvPickCustomImage(input, id) {
+            const f = input.files && input.files[0];
+            if (!f) return;
+            if (!/^image\//.test(f.type)) { showToast('กรุณาเลือกไฟล์รูปภาพเท่านั้น', 'error'); input.value = ''; return; }
+            try {
+                hvState.imgs[id] = await hvCompress(f, HV_CUSTOM_MEDIA.steps, HV_CUSTOM_MEDIA.limit);
+                hvRefreshMedia();
+            } catch (e) {
+                showToast('อ่านรูปไม่สำเร็จ ลองเลือกรูปอื่นอีกครั้ง', 'error');
+            }
+            input.value = '';
+        }
+        function hvClearCustomImage(id) { hvState.imgs[id] = ''; hvRefreshMedia(); }
+
+        function hvRefreshMedia() {
+            hvRenderAddress();
+            ['photo', 'houseOut', 'houseIn'].forEach(k => {
+                const img = document.getElementById(`hv-${k}-img`);
+                const empty = document.getElementById(`hv-${k}-empty`);
+                const rm = document.getElementById(`hv-${k}-remove`);
+                const has = !!hvState[k];
+                if (img) { if (has) img.src = hvState[k]; else img.removeAttribute('src'); img.classList.toggle('hidden', !has); }
+                if (empty) empty.classList.toggle('hidden', has);
+                if (rm) rm.classList.toggle('hidden', !has);
+            });
+            document.querySelectorAll('[data-cimg-img]').forEach(img => {
+                const id = img.dataset.cimgImg;
+                const has = !!hvState.imgs[id];
+                if (has) img.src = hvState.imgs[id]; else img.removeAttribute('src');
+                img.classList.toggle('hidden', !has);
+                const empty = document.querySelector(`[data-cimg-empty="${id}"]`);
+                const rm = document.querySelector(`[data-cimg-remove="${id}"]`);
+                if (empty) empty.classList.toggle('hidden', has);
+                if (rm) rm.classList.toggle('hidden', !has);
+            });
+            const c = document.getElementById('hv-map-coords');
+            if (c) {
+                if (hvState.lat !== null) {
+                    c.innerHTML = `<span class="text-emerald-600 font-semibold"><i class="fa-solid fa-circle-check"></i> ปักหมุดแล้ว</span> · ${hvState.lat.toFixed(6)}, ${hvState.lng.toFixed(6)}
+                        <button type="button" onclick="hvCopyPinCoords(${hvState.lat},${hvState.lng})" class="ml-1 text-indigo-600 underline">คัดลอกพิกัด</button>
+                        <a href="https://www.google.com/maps?q=${hvState.lat},${hvState.lng}" target="_blank" rel="noopener" class="ml-1 text-indigo-600 underline">เปิดใน Google Maps</a>`;
+                } else {
+                    c.innerHTML = '<i class="fa-solid fa-hand-pointer text-slate-400"></i> ยังไม่ได้ปักหมุด — ลากแผนที่ให้หมุดสีส้มตรงกลางชี้ที่บ้านของคุณ (หรือกดปุ่มเป้าที่มุมแผนที่เพื่อใช้ตำแหน่งปัจจุบัน)';
+                }
+            }
+        }
+
+        // ---------- พื้นแผนที่หน้าตาแบบแผนที่ GPS (CARTO Voyager) — สำรองด้วย Esri Street ถ้าโหลดไม่ได้ ----------
+        // หมายเหตุ: tile.openstreetmap.org ปิดกั้นเว็บที่ไม่ส่ง Referer/ไม่ทำตามนโยบาย จึงเลิกใช้ตัวนั้น
+        function hvAddBaseTiles(map) {
+            const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                subdomains: 'abcd', maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            });
+            const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19, attribution: 'Tiles &copy; Esri'
+            });
+            let loaded = 0, errors = 0, swapped = false;
+            carto.on('tileload', () => { loaded++; });
+            carto.on('tileerror', () => {
+                errors++;
+                if (!swapped && loaded === 0 && errors >= 4) { swapped = true; map.removeLayer(carto); esri.addTo(map); }
+            });
+            carto.addTo(map);
+        }
+
+        // ---------- แผนที่ปักหมุดแบบ Shopee: หมุดอยู่กลางจอ ลากแผนที่ให้ตรงบ้าน ----------
+        function hvPinIcon() {
+            return L.divIcon({ html: HV_PIN_SVG, className: 'hv-static-pin', iconSize: [36, 46], iconAnchor: [18, 46] });
+        }
+        function hvEnsureMap() {
+            const el = document.getElementById('hv-map');
+            if (!el) return;
+            if (typeof L === 'undefined') {
+                el.innerHTML = '<div class="p-4 text-xs text-slate-500">โหลดแผนที่ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ตแล้วรีเฟรชหน้าเว็บ</div>';
+                return;
+            }
+            if (!hvMap) {
+                const has = hvState.lat !== null;
+                hvMap = L.map(el, { scrollWheelZoom: true, tap: true }).setView(has ? [hvState.lat, hvState.lng] : [13.7563, 100.5018], has ? 18 : 6);
+                hvAddBaseTiles(hvMap);
+                const pin = () => document.getElementById('hv-center-pin');
+                hvMap.on('dragstart', () => { hvMapTouched = true; });
+                hvMap.on('movestart', () => { const p = pin(); if (p) p.classList.add('lift'); });
+                hvMap.on('moveend', () => {
+                    const p = pin(); if (p) p.classList.remove('lift');
+                    if (hvMapTouched) {
+                        const c = hvMap.getCenter();
+                        hvState.lat = c.lat; hvState.lng = c.lng;
+                        const lf = hvState.labelFor;
+                        if (lf && Math.abs(lf.lat - c.lat) < 0.00005 && Math.abs(lf.lng - c.lng) < 0.00005) {
+                            hvRefreshMedia(); // เพิ่งค้นหามา — ใช้ชื่อสถานที่จากผลค้นหาต่อไป
+                        } else {
+                            hvState.labelFor = null; hvState.address = '';
+                            hvRefreshMedia();
+                            hvScheduleReverse(c.lat, c.lng); // ลาก/แตะแผนที่ → หาที่อยู่ของจุดที่หมุดชี้
+                        }
+                    }
+                });
+                hvMap.on('click', e => { hvMapTouched = true; hvMap.panTo(e.latlng); });
+            }
+            setTimeout(() => { if (hvMap) hvMap.invalidateSize(); }, 150);
+        }
+        function hvGoTo(lat, lng, label) {
+            hvEnsureMap();
+            hvState.lat = Number(lat); hvState.lng = Number(lng);
+            hvState.address = label || '';
+            hvState.labelFor = label ? { lat: hvState.lat, lng: hvState.lng } : null;
+            hvState.addrLoading = false;
+            hvRefreshMedia();
+            if (hvMap) { hvMapTouched = true; hvMap.setView([hvState.lat, hvState.lng], 18); }
+            if (!label) hvScheduleReverse(hvState.lat, hvState.lng);
+        }
+        function hvSetPin(lat, lng) { hvGoTo(lat, lng); }
+        function hvConfirmPin() {
+            hvEnsureMap();
+            if (!hvMap) return;
+            const c = hvMap.getCenter();
+            hvState.lat = c.lat; hvState.lng = c.lng; hvMapTouched = true;
+            hvRefreshMedia();
+            if (!hvState.address && !hvState.addrLoading) hvScheduleReverse(c.lat, c.lng);
+            showToast('ปักหมุดตำแหน่งบ้านเรียบร้อยแล้ว', 'success');
+        }
+        function hvClearPin() {
+            hvState.lat = null; hvState.lng = null; hvMapTouched = false;
+            hvState.address = ''; hvState.addrLoading = false; hvState.labelFor = null;
+            hvRevSeq++; clearTimeout(hvRevTimer);
+            hvRefreshMedia();
+        }
+
+        // ---------- ปุ่มเป้า: หาตำแหน่งปัจจุบันของเครื่อง ----------
+        function hvLocateMe() {
+            if (!navigator.geolocation) { showToast('เครื่องนี้ไม่รองรับการหาตำแหน่ง กรุณาพิมพ์ค้นหาหรือลากแผนที่เพื่อปักหมุดเอง', 'error'); return; }
+            if (window.isSecureContext === false) { showToast('การหาตำแหน่งต้องเปิดเว็บผ่าน https:// (หรือ localhost) — ตอนนี้ให้พิมพ์ค้นหาหรือลากแผนที่แทนได้', 'error'); return; }
+            hvEnsureMap();
+            const icon = document.querySelector('.hv-gps-btn i');
+            const reset = () => { if (icon) icon.className = 'fa-solid fa-crosshairs'; };
+            if (icon) icon.className = 'fa-solid fa-spinner fa-spin';
+            navigator.geolocation.getCurrentPosition(
+                p => { reset(); hvGoTo(p.coords.latitude, p.coords.longitude); showToast('พบตำแหน่งปัจจุบันแล้ว — ขยับแผนที่ให้หมุดตรงบ้านได้เลย', 'success'); },
+                err => {
+                    reset();
+                    const msg = err && err.code === 1 ? 'ยังไม่ได้อนุญาตให้เข้าถึงตำแหน่ง — กดอนุญาตตำแหน่งในเบราว์เซอร์แล้วลองใหม่ หรือพิมพ์ค้นหา/ลากแผนที่เอง'
+                        : err && err.code === 3 ? 'หาตำแหน่งนานเกินไป ลองอีกครั้ง หรือพิมพ์ค้นหา/ลากแผนที่เอง'
+                        : 'อ่านตำแหน่งไม่ได้ ลองอีกครั้ง หรือพิมพ์ค้นหา/ลากแผนที่เอง';
+                    showToast(msg, 'error');
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        }
+
+        // ---------- ค้นหาสถานที่ + หาที่อยู่จากพิกัด (Nominatim → สำรอง Photon) ----------
+        let hvRevSeq = 0, hvRevTimer = null, hvLastResults = [];
+        async function hvFetchJson(url) {
+            const ctl = new AbortController();
+            const t = setTimeout(() => ctl.abort(), 9000);
+            try {
+                const r = await fetch(url, { signal: ctl.signal, headers: { 'Accept': 'application/json' } });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return await r.json();
+            } finally { clearTimeout(t); }
+        }
+        function hvPhotonLabel(p) {
+            const parts = [];
+            const street = [p.housenumber, p.street].filter(Boolean).join(' ');
+            [p.name, street, p.district || p.locality, p.city || p.county, p.state, p.postcode, p.country].forEach(x => { if (x && !parts.includes(x)) parts.push(x); });
+            return parts.join(', ');
+        }
+        async function hvGeocodeSearch(q) {
+            const enc = encodeURIComponent(q);
+            try {
+                let r = await hvFetchJson('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=th&countrycodes=th&q=' + enc);
+                if (!r.length) r = await hvFetchJson('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=th&q=' + enc);
+                if (r.length) return r.map(d => ({ lat: Number(d.lat), lng: Number(d.lon), label: d.display_name }));
+                return [];
+            } catch (e) { /* Nominatim ใช้ไม่ได้ → ลองตัวสำรอง */ }
+            const j = await hvFetchJson('https://photon.komoot.io/api/?limit=8&lat=13.75&lon=100.5&q=' + enc);
+            const feats = (j.features || []).filter(f => f.geometry && f.geometry.coordinates);
+            feats.sort((a, b) => (b.properties.countrycode === 'TH') - (a.properties.countrycode === 'TH'));
+            return feats.map(f => ({ lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], label: hvPhotonLabel(f.properties || {}) }));
+        }
+        async function hvGeocodeReverse(lat, lng) {
+            try {
+                const r = await hvFetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=th&lat=' + lat + '&lon=' + lng);
+                if (r && r.display_name) return r.display_name;
+            } catch (e) { /* ลองตัวสำรอง */ }
+            try {
+                const j = await hvFetchJson('https://photon.komoot.io/reverse?lat=' + lat + '&lon=' + lng);
+                const f = j.features && j.features[0];
+                if (f) return hvPhotonLabel(f.properties || {});
+            } catch (e) {}
+            return '';
+        }
+        function hvScheduleReverse(lat, lng) {
+            clearTimeout(hvRevTimer);
+            hvState.addrLoading = true; hvRenderAddress();
+            hvRevTimer = setTimeout(async () => {
+                const seq = ++hvRevSeq;
+                const text = await hvGeocodeReverse(lat, lng);
+                if (seq !== hvRevSeq) return; // มีการขยับหมุดใหม่แล้ว ทิ้งผลเก่า
+                hvState.addrLoading = false;
+                hvState.address = text || '';
+                hvRenderAddress();
+            }, 600);
+        }
+        function hvRenderAddress() {
+            const el = document.getElementById('hv-map-address');
+            if (!el) return;
+            if (hvState.lat === null) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+            if (hvState.addrLoading) {
+                el.classList.remove('hidden');
+                el.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-slate-400"></i> กำลังหาที่อยู่ของจุดนี้...';
+            } else if (hvState.address) {
+                el.classList.remove('hidden');
+                el.innerHTML = '<i class="fa-solid fa-location-dot text-rose-500"></i> <span class="font-medium">' + escapeHtml(hvState.address) + '</span>';
+            } else {
+                el.classList.add('hidden'); el.innerHTML = '';
+            }
+        }
+        async function hvSearchPlace() {
+            const inp = document.getElementById('hv-map-search');
+            const box = document.getElementById('hv-search-results');
+            if (!inp || !box) return;
+            const q = inp.value.trim();
+            if (!q) return;
+            box.classList.remove('hidden');
+            box.innerHTML = '<p class="p-3 text-slate-400"><i class="fa-solid fa-spinner fa-spin"></i> กำลังค้นหา...</p>';
+            try {
+                const res = await hvGeocodeSearch(q);
+                if (!res.length) { box.innerHTML = '<p class="p-3 text-slate-500">ไม่พบสถานที่ ลองพิมพ์ชื่ออื่น (เช่น ชื่อหมู่บ้าน/ตำบล/อำเภอ) หรือลากแผนที่เอง</p>'; return; }
+                hvLastResults = res;
+                hvGoTo(res[0].lat, res[0].lng, res[0].label); // เด้งไปผลแรกให้เลย
+                if (res.length > 1) {
+                    box.innerHTML = '<p class="px-3 py-2 bg-slate-50 text-slate-500 border-b border-slate-100">แสดงผลแรกบนแผนที่แล้ว — หรือเลือกที่อื่น:</p>' +
+                        res.map((d, i) => `<button type="button" onclick="hvPickPlaceIdx(${i})" class="w-full text-left px-3 py-2 border-b border-slate-100 hover:bg-indigo-50 flex items-start gap-2"><i class="fa-solid fa-location-dot text-rose-500 mt-0.5"></i><span>${escapeHtml(d.label)}</span></button>`).join('');
+                } else {
+                    box.classList.add('hidden');
+                }
+            } catch (e) {
+                box.innerHTML = '<p class="p-3 text-rose-500">ค้นหาไม่สำเร็จ (ตรวจสอบอินเทอร์เน็ต) — ลากแผนที่หรือกดปุ่มเป้าแทนได้เลย</p>';
+            }
+        }
+        function hvPickPlaceIdx(i) {
+            const d = hvLastResults[i];
+            const box = document.getElementById('hv-search-results');
+            if (box) box.classList.add('hidden');
+            if (d) hvGoTo(d.lat, d.lng, d.label);
+        }
+        function hvPickPlace(lat, lng) { hvGoTo(lat, lng); }
+        function hvOnStudentStep(step) {
+            const st = document.querySelector(`#student-form-panel .student-step[data-step="${step}"]`);
+            if (st && st.querySelector('#hv-map')) hvEnsureMap();
+        }
+
+        // ---------- เก็บ/เติม/ล้าง ข้อมูลส่วนขยายของฟอร์มนักเรียน ----------
+        function hvCollectStudentExtras() {
+            const ex = db.students.find(s => s.id === (studentSession && studentSession.existingId));
+            const extra = Object.assign({}, (ex && ex.extra) || {});
+            document.querySelectorAll('#student-form-panel [data-cf]').forEach(el => { extra[el.dataset.cf] = String(el.value).trim(); });
+            hvCustomForm().fields.forEach(f => { if (f.type === 'image') extra[f.id] = hvState.imgs[f.id] || ''; });
+            extra._mapAddress = hvState.address || '';
+            return {
+                photo: hvState.photo, houseOutPhoto: hvState.houseOut, houseInPhoto: hvState.houseIn,
+                homeLat: hvState.lat, homeLng: hvState.lng, extra: extra
+            };
+        }
+        function hvFillExtras(std) {
+            hvState.photo = std.photo || '';
+            hvState.houseOut = std.houseOutPhoto || '';
+            hvState.houseIn = std.houseInPhoto || '';
+            hvState.lat = hvHasPin(std) ? Number(std.homeLat) : null;
+            hvState.lng = hvHasPin(std) ? Number(std.homeLng) : null;
+            const ex = std.extra || {};
+            hvState.address = ex._mapAddress || ''; hvState.addrLoading = false; hvState.labelFor = null;
+            hvState.imgs = {};
+            hvCustomForm().fields.forEach(f => { if (f.type === 'image') hvState.imgs[f.id] = ex[f.id] || ''; });
+            document.querySelectorAll('#student-form-panel [data-cf]').forEach(el => { el.value = ex[el.dataset.cf] !== undefined ? ex[el.dataset.cf] : ''; });
+            hvRefreshMedia();
+            if (hvMap) {
+                hvMapTouched = false;
+                if (hvState.lat !== null) hvMap.setView([hvState.lat, hvState.lng], 18);
+            }
+        }
+        function hvResetExtras() {
+            hvState.photo = ''; hvState.houseOut = ''; hvState.houseIn = ''; hvState.lat = null; hvState.lng = null; hvState.imgs = {};
+            hvState.address = ''; hvState.addrLoading = false; hvState.labelFor = null;
+            hvMapTouched = false;
+            hvRefreshMedia();
+        }
+        // ครอบฟังก์ชันเดิม ให้เติม/ล้างข้อมูลส่วนขยายพร้อมกันอัตโนมัติ
+        const _hvOrigFill = fillStudentForm;
+        fillStudentForm = function (std) { _hvOrigFill(std); hvFillExtras(std); };
+        const _hvOrigReset = resetStudentFormFields;
+        resetStudentFormFields = function () { _hvOrigReset(); hvResetExtras(); };
+
+        // รับค่าเพิ่มเติมจาก Google Sheet (และคงค่าที่เก็บในเครื่องไว้ถ้า Sheet ยังไม่มีคอลัมน์เหล่านี้)
+        function hvMergeExtras(s, local) {
+            local = local || {};
+            let extra = s.extraJson || s.extra;
+            if (typeof extra === 'string') { try { extra = JSON.parse(extra); } catch (e) { extra = null; } }
+            const num = (v, lv) => (v !== undefined && v !== null && v !== '' && !isNaN(Number(v))) ? Number(v) : (lv !== undefined ? lv : null);
+            return {
+                photo: s.photo || local.photo || '',
+                houseOutPhoto: s.houseOutPhoto || local.houseOutPhoto || '',
+                houseInPhoto: s.houseInPhoto || local.houseInPhoto || '',
+                homeLat: num(s.homeLat, local.homeLat),
+                homeLng: num(s.homeLng, local.homeLng),
+                extra: (extra && typeof extra === 'object') ? extra : (local.extra || {})
+            };
+        }
+
+        // ---------- แสดงผลฝั่งครู/แอดมิน ----------
+        function hvOpenImage(src) {
+            let o = document.getElementById('hv-lightbox');
+            if (!o) {
+                o = document.createElement('div');
+                o.id = 'hv-lightbox';
+                o.className = 'hidden fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 cursor-zoom-out';
+                o.onclick = () => o.classList.add('hidden');
+                o.innerHTML = '<img class="max-w-full max-h-full rounded-xl shadow-2xl" alt="">';
+                document.body.appendChild(o);
+            }
+            o.querySelector('img').src = src;
+            o.classList.remove('hidden');
+        }
+        function hvViewMediaHtml(std) {
+            const e = (v) => escapeHtml(String(v === undefined || v === null ? '' : v));
+            const head = (t) => `<p class="text-[11px] font-bold text-blue-700 bg-blue-50/70 px-2 py-1 rounded-md mt-3 mb-1.5">${t}</p>`;
+            const photoBox = (src, cls, icon) => src
+                ? `<img src="${src}" onclick="hvOpenImage(this.src)" class="${cls} object-cover cursor-zoom-in" alt="">`
+                : `<div class="${cls} flex items-center justify-center bg-slate-50 text-slate-300"><i class="fa-solid ${icon} text-3xl"></i></div>`;
+            const lat = hvHasPin(std) ? Number(std.homeLat) : null, lng = hvHasPin(std) ? Number(std.homeLng) : null;
+            const map = hvHasPin(std)
+                ? `<div id="tvs-map" class="hv-map-box w-full h-56 rounded-2xl border border-slate-200 bg-slate-100"></div>
+                   <p class="mt-2 text-[11px] text-slate-600">พิกัด: <span class="font-mono font-semibold">${lat.toFixed(6)}, ${lng.toFixed(6)}</span></p>
+                   ${(std.extra && std.extra._mapAddress) ? `<p class="mt-1 text-[11px] text-slate-600 leading-relaxed"><i class="fa-solid fa-location-dot text-rose-500"></i> ${e(std.extra._mapAddress)}</p>` : ''}
+                   <div class="flex flex-wrap gap-2 mt-2">
+                       <button type="button" onclick="hvCopyPinCoords(${lat},${lng})" class="text-[11px] px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium flex items-center gap-1.5"><i class="fa-regular fa-copy"></i> คัดลอกพิกัด</button>
+                       <button type="button" onclick="hvCopyPinLink(${lat},${lng})" class="text-[11px] px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium flex items-center gap-1.5"><i class="fa-solid fa-link"></i> คัดลอกลิงก์ Google Maps</button>
+                       <a href="${hvMapLink(std)}" target="_blank" rel="noopener" class="text-[11px] px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center gap-1.5"><i class="fa-solid fa-diamond-turn-right"></i> เปิด/นำทางใน Google Maps</a>
+                   </div>`
+                : `<p class="text-slate-400">นักเรียนยังไม่ได้ปักหมุดตำแหน่งบ้าน</p>`;
+            return `<div class="flex items-start justify-between gap-4 pb-3 border-b border-slate-100">
+                    <div class="min-w-0"><p class="text-sm font-bold text-slate-800">${e(std.name)}</p><p class="text-[11px] text-slate-500 mt-0.5">รหัส ${e(std.code)} · ม.${e(std.grade)}</p></div>
+                    <div class="w-24 h-28 shrink-0 rounded-2xl overflow-hidden border border-slate-200">${photoBox(std.photo, 'w-full h-full', 'fa-user')}</div>
+                </div>
+                ${head('สภาพบ้าน')}
+                <div class="grid grid-cols-2 gap-2">
+                    <div><p class="text-[10px] text-slate-500 mb-1">${e(ftext('house-out-label'))}</p><div class="aspect-[4/3] rounded-xl overflow-hidden border border-slate-200">${photoBox(std.houseOutPhoto, 'w-full h-full', 'fa-house')}</div></div>
+                    <div><p class="text-[10px] text-slate-500 mb-1">${e(ftext('house-in-label'))}</p><div class="aspect-[4/3] rounded-xl overflow-hidden border border-slate-200">${photoBox(std.houseInPhoto, 'w-full h-full', 'fa-couch')}</div></div>
+                </div>
+                ${head('ตำแหน่งบ้าน (หมุดที่นักเรียนปักไว้)')}
+                ${map}`;
+        }
+        function hvInitViewMap(std) {
+            if (hvViewMap) { hvViewMap.remove(); hvViewMap = null; }
+            const el = document.getElementById('tvs-map');
+            if (!el || typeof L === 'undefined' || !hvHasPin(std)) return;
+            const pos = [Number(std.homeLat), Number(std.homeLng)];
+            hvViewMap = L.map(el, { scrollWheelZoom: false }).setView(pos, 17);
+            hvAddBaseTiles(hvViewMap);
+            L.marker(pos, { icon: hvPinIcon() }).addTo(hvViewMap);
+            setTimeout(() => { if (hvViewMap) hvViewMap.invalidateSize(); }, 200);
+        }
+        function hvExtrasRowsHtml(std, headCls) {
+            const cf = hvCustomForm();
+            if (!cf.fields.length) return '';
+            const pageIds = hvPageIds();
+            const ex = std.extra || {};
+            let html = '';
+            pageIds.forEach(pid => {
+                const fs = cf.fields.filter(f => String(f.page) === pid);
+                if (!fs.length) return;
+                html += `<p class="${headCls}">ข้อมูลเพิ่มเติม · ${escapeHtml(hvPageTitle(pid))}</p>` + fs.map(f => {
+                    const v = ex[f.id];
+                    if (f.type === 'image') {
+                        return `<div class="border-b border-slate-100 pb-1.5"><span class="text-slate-400 block mb-1">${escapeHtml(f.label)}</span>${v ? `<img src="${v}" onclick="hvOpenImage(this.src)" class="w-40 h-28 object-cover rounded-lg border border-slate-200 cursor-zoom-in" alt="">` : '<span class="text-slate-400">-</span>'}</div>`;
+                    }
+                    return `<div class="flex justify-between gap-3 border-b border-slate-100 pb-1"><span class="text-slate-400 shrink-0">${escapeHtml(f.label)}</span><span class="font-medium text-right ${v ? 'text-slate-700' : 'text-slate-400'}">${v ? escapeHtml(v) : '-'}</span></div>`;
+                }).join('');
+            });
+            return html;
+        }
+        function hvCardMediaHtml(std) {
+            if (!(std.photo || std.houseOutPhoto || std.houseInPhoto || hvHasPin(std))) return '';
+            const th = (src, label) => src
+                ? `<div class="text-center"><img src="${src}" onclick="hvOpenImage(this.src)" class="w-full h-16 object-cover rounded-lg border border-slate-200 cursor-zoom-in" alt=""><p class="text-[9px] text-slate-400 mt-0.5">${escapeHtml(label)}</p></div>` : '';
+            return `<div class="grid grid-cols-3 gap-2 mb-2">${th(std.photo, 'รูปนักเรียน')}${th(std.houseOutPhoto, ftext('house-out-label'))}${th(std.houseInPhoto, ftext('house-in-label'))}</div>
+                ${hvHasPin(std) ? `<a href="${hvMapLink(std)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 mb-2 text-[11px] font-semibold text-indigo-600 hover:underline"><i class="fa-solid fa-location-dot text-rose-500"></i> ดูหมุดบ้านบนแผนที่</a>` : ''}`;
+        }
+
+        // =====================================================================
+        // หน้าต่างปรับแต่งฟอร์ม: แก้ชื่อหัวข้อ / ย้ายขึ้น-ลง / ย้ายไปหน้าอื่น / ลบ / เพิ่มช่อง-รูป-หน้า
+        // =====================================================================
+        let ftDraft = null;
+        const ftOpenPages = {};
+        function hvNewId(prefix) { return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+
+        // key ข้อความที่ตัวจัดหน้าดูแลอยู่ (ไม่ต้องแสดงซ้ำในรายการข้อความด้านบน)
+        function hvBuilderKeys() {
+            hvInitRegistry();
+            const s = new Set(HV_REG.keys.map(k => HV_REG.items[k].labelKey));
+            Object.values(HV_PAGE_TITLE_KEY).forEach(k => s.add(k));
+            return s;
+        }
+        function hvDraftLabel(labelKey) {
+            const v = ftDraft.lk[labelKey];
+            if (v !== undefined && v !== '') return v;
+            const cfg = FIELD_TEXT_CONFIG.find(f => f.key === labelKey && f.kind === 'lk');
+            return cfg ? cfg.def : '';
+        }
+        function hvBuildDraft() {
+            hvInitRegistry();
+            const cf = hvCustomForm();
+            const pageIds = hvPageIds();
+            const layout = hvComputeLayout(pageIds);
+            const hidden = hvHiddenKeys();
+            const d = { lk: Object.assign({}, (db.settings.studentFieldText && db.settings.studentFieldText.lk) || {}), pages: [] };
+            ftDraft = d;
+            pageIds.forEach(pid => {
+                const builtin = !!HV_PAGE_TITLE_KEY[pid];
+                const cp = cf.pages.find(p => p.id === pid);
+                d.pages.push({
+                    id: pid, builtin: builtin,
+                    title: builtin ? hvDraftLabel(HV_PAGE_TITLE_KEY[pid]) : (cp ? cp.title : ''),
+                    items: (layout[pid] || []).map(key => {
+                        if (key.indexOf('cf:') === 0) {
+                            const f = cf.fields.find(x => 'cf:' + x.id === key);
+                            return { key: key, custom: true, id: f.id, type: f.type === 'image' ? 'image' : 'text', label: f.label, placeholder: f.placeholder || '' };
+                        }
+                        const it = HV_REG.items[key];
+                        return { key: key, custom: false, type: it.kind === 'block' ? 'block' : 'field', labelKey: it.labelKey, protected: HV_PROTECTED_KEYS.includes(key), hidden: hidden.includes(key) };
+                    })
+                });
+            });
+            return d;
+        }
+
+        function renderFieldTextModal() {
+            const container = document.getElementById('field-text-groups');
+            container.innerHTML = '';
+            const managed = hvBuilderKeys();
+            const list = FIELD_TEXT_CONFIG.filter(f => !f.hideInModal && !(f.kind === 'lk' && managed.has(f.key)));
+            const groups = [];
+            list.forEach(f => { if (!groups.includes(f.group)) groups.push(f.group); });
+
+            groups.forEach(g => {
+                const wrap = document.createElement('div');
+                wrap.innerHTML = `<h4 class="text-xs font-bold text-blue-700 bg-blue-50 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg mb-2.5"><i class="fa-solid fa-layer-group"></i> ${escapeHtml(g)}</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-1"></div>`;
+                const grid = wrap.querySelector('.grid');
+                list.filter(f => f.group === g).forEach(f => {
+                    const current = f.kind === 'lk' ? ftext(f.key) : f.kind === 'html' ? ftextHtml(f.key) : ftextPh(f.key);
+                    const kindNote = f.kind === 'ph' ? ' (ข้อความตัวอย่างในช่องว่าง)' : f.kind === 'html' ? ' (คำอธิบาย)' : '';
+                    const field = document.createElement('div');
+                    field.innerHTML = `<label class="block text-[11px] font-semibold text-slate-600 mb-1">${escapeHtml(f.def)}${kindNote}</label>
+                        <input type="text" data-ftk="${f.key}" data-ftkind="${f.kind}" value="${hvAttr(current)}" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">`;
+                    grid.appendChild(field);
+                });
+                container.appendChild(wrap);
+            });
+            hvRenderCustomEditor();
+        }
+
+        function hvItemRowHtml(pi, ii, it) {
+            const d = ftDraft;
+            const label = it.custom ? it.label : hvDraftLabel(it.labelKey);
+            const badge = {
+                field: ['ช่องของระบบ', 'bg-slate-100 text-slate-500'],
+                block: ['ส่วนของระบบ', 'bg-indigo-50 text-indigo-600'],
+                text: ['ช่องข้อความ', 'bg-emerald-50 text-emerald-700'],
+                image: ['ช่องรูปภาพ', 'bg-amber-50 text-amber-700']
+            }[it.type];
+            const cls = 'text-xs p-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500';
+            const moveSel = `<select onchange="ftMoveItemToPage(${pi},${ii},this.value)" title="ย้ายไปหน้าอื่น" class="${cls} bg-white w-[6.2rem]">
+                ${d.pages.map((p, k) => `<option value="${k}" ${k === pi ? 'selected' : ''}>${k === pi ? 'อยู่หน้า ' + (k + 1) : 'ย้ายไปหน้า ' + (k + 1)}</option>`).join('')}
+            </select>`;
+            const btn = 'shrink-0 w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px]';
+            const last = d.pages[pi].items.length - 1;
+            let action;
+            if (it.hidden) action = `<button type="button" onclick="ftToggleItem(${pi},${ii})" class="shrink-0 text-[10px] px-2 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium"><i class="fa-solid fa-rotate-left"></i> กู้คืน</button>`;
+            else if (it.protected) action = `<span title="ระบบต้องใช้ช่องนี้บันทึกข้อมูลนักเรียน จึงลบไม่ได้ (แก้ชื่อและย้ายหน้าได้)" class="shrink-0 text-[10px] px-2 py-1.5 rounded-lg bg-slate-50 text-slate-400"><i class="fa-solid fa-lock"></i> จำเป็น</span>`;
+            else action = `<button type="button" onclick="ftDelItem(${pi},${ii})" title="ลบช่องนี้" class="shrink-0 w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"><i class="fa-solid fa-trash-can text-[11px]"></i></button>`;
+            return `<div class="flex flex-wrap items-center gap-1.5 p-2 rounded-xl border ${it.hidden ? 'border-dashed border-slate-300 bg-slate-50' : 'border-slate-200 bg-white'}">
+                <span class="shrink-0 text-[9px] px-1.5 py-1 rounded-md font-semibold ${badge[1]}">${badge[0]}</span>
+                <input type="text" value="${hvAttr(label)}" oninput="ftSetLabel(${pi},${ii},this.value)" placeholder="ชื่อหัวข้อ / ป้ายชื่อ" class="${cls} flex-1 min-w-[9rem] ${it.hidden ? 'line-through opacity-50' : ''}">
+                ${it.type === 'text' ? `<input type="text" value="${hvAttr(it.placeholder)}" oninput="ftSetPh(${pi},${ii},this.value)" placeholder="ข้อความตัวอย่างในช่อง" class="${cls} flex-1 min-w-[8rem]">` : ''}
+                <button type="button" ${ii === 0 ? 'disabled style="opacity:.3"' : ''} onclick="ftMoveItem(${pi},${ii},-1)" title="ย้ายขึ้น" class="${btn}"><i class="fa-solid fa-arrow-up"></i></button>
+                <button type="button" ${ii === last ? 'disabled style="opacity:.3"' : ''} onclick="ftMoveItem(${pi},${ii},1)" title="ย้ายลง" class="${btn}"><i class="fa-solid fa-arrow-down"></i></button>
+                ${moveSel}
+                ${action}
+            </div>`;
+        }
+
+        function hvRenderCustomEditor() {
+            const box = document.getElementById('field-custom-form');
+            if (!box) return;
+            if (!ftDraft) return;
+            const d = ftDraft;
+            const cls = 'text-xs p-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500';
+            box.innerHTML = `
+                <h4 class="text-xs font-bold text-emerald-700 bg-emerald-50 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg mb-1"><i class="fa-solid fa-table-list"></i> จัดหน้า / ช่องกรอกข้อมูล (ทุกช่องแก้ชื่อ ย้าย และลบได้)</h4>
+                <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">แก้ชื่อหัวข้อของช่องได้ทันทีในกล่อง · ลูกศร ↑↓ = ย้ายลำดับในหน้านั้น · เมนู "ย้ายไปหน้า" = ย้ายช่องไปหน้าอื่น · ถังขยะ = ลบ (ช่องของระบบกด "กู้คืน" ได้ก่อนบันทึก) · ช่อง "ชื่อ-นามสกุล" และ "ระดับชั้น" ลบไม่ได้เพราะระบบต้องใช้บันทึกข้อมูลนักเรียน</p>
+                <div class="space-y-3">
+                ${d.pages.map((p, pi) => {
+                    const open = !!ftOpenPages[p.id];
+                    const shown = p.items.filter(i => !i.hidden).length;
+                    return `<div class="rounded-2xl border border-slate-200 bg-slate-50/60">
+                        <div class="flex items-center gap-2 p-3">
+                            <button type="button" onclick="ftTogglePage('${p.id}')" class="shrink-0 w-7 h-7 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">${pi + 1}</button>
+                            <input type="text" value="${hvAttr(p.title)}" placeholder="ชื่อหน้า" oninput="ftSetPageTitle(${pi},this.value)" class="${cls} flex-1 font-semibold">
+                            <span class="hidden sm:inline text-[10px] text-slate-400 shrink-0">${shown} ช่อง</span>
+                            <button type="button" ${pi === 0 ? 'disabled style="opacity:.3"' : ''} onclick="ftMovePage(${pi},-1)" title="ย้ายหน้าไปก่อน" class="shrink-0 w-7 h-7 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600 text-[11px]"><i class="fa-solid fa-arrow-left"></i></button>
+                            <button type="button" ${pi === d.pages.length - 1 ? 'disabled style="opacity:.3"' : ''} onclick="ftMovePage(${pi},1)" title="ย้ายหน้าไปหลัง" class="shrink-0 w-7 h-7 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-600 text-[11px]"><i class="fa-solid fa-arrow-right"></i></button>
+                            <button type="button" onclick="ftDelPage(${pi})" title="ลบหน้านี้" class="shrink-0 text-[11px] px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 font-medium"><i class="fa-solid fa-trash-can"></i> ลบหน้า</button>
+                            <button type="button" onclick="ftTogglePage('${p.id}')" class="shrink-0 w-7 h-7 rounded-lg text-slate-500 hover:bg-slate-200"><i class="fa-solid fa-chevron-${open ? 'up' : 'down'}"></i></button>
+                        </div>
+                        ${open ? `<div class="px-3 pb-3 space-y-1.5">
+                            ${p.items.length ? p.items.map((it, ii) => hvItemRowHtml(pi, ii, it)).join('') : '<p class="text-[11px] text-slate-400 px-1">หน้านี้ยังไม่มีช่อง</p>'}
+                            <div class="flex flex-wrap gap-2 pt-1.5">
+                                <button type="button" onclick="ftAddItem(${pi},'text')" class="text-[11px] px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-medium"><i class="fa-solid fa-plus"></i> เพิ่มช่องข้อความ</button>
+                                <button type="button" onclick="ftAddItem(${pi},'image')" class="text-[11px] px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 font-medium"><i class="fa-solid fa-image"></i> เพิ่มช่องแทรกรูป</button>
+                            </div>
+                        </div>` : ''}
+                    </div>`;
+                }).join('')}
+                </div>
+                <button type="button" onclick="ftAddPage()" class="mt-3 text-xs px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm"><i class="fa-solid fa-file-circle-plus"></i> เพิ่มหน้าใหม่ (ต่อจากหน้าสุดท้าย)</button>`;
+        }
+
+        function ftTogglePage(pid) { ftOpenPages[pid] = !ftOpenPages[pid]; hvRenderCustomEditor(); }
+        function ftSetPageTitle(pi, val) {
+            const p = ftDraft.pages[pi]; if (!p) return;
+            p.title = val;
+            if (p.builtin) ftDraft.lk[HV_PAGE_TITLE_KEY[p.id]] = val;
+        }
+        function ftSetLabel(pi, ii, val) {
+            const it = ftDraft.pages[pi].items[ii]; if (!it) return;
+            if (it.custom) it.label = val; else ftDraft.lk[it.labelKey] = val;
+        }
+        function ftSetPh(pi, ii, val) { const it = ftDraft.pages[pi].items[ii]; if (it) it.placeholder = val; }
+        function ftMoveItem(pi, ii, dir) {
+            const arr = ftDraft.pages[pi].items, j = ii + dir;
+            if (j < 0 || j >= arr.length) return;
+            const t = arr[ii]; arr[ii] = arr[j]; arr[j] = t;
+            hvRenderCustomEditor();
+        }
+        function ftMoveItemToPage(pi, ii, target) {
+            const ti = Number(target);
+            if (ti === pi || !ftDraft.pages[ti]) return;
+            const it = ftDraft.pages[pi].items.splice(ii, 1)[0];
+            ftDraft.pages[ti].items.push(it);
+            ftOpenPages[ftDraft.pages[ti].id] = true;
+            hvRenderCustomEditor();
+        }
+        function ftDelItem(pi, ii) {
+            const arr = ftDraft.pages[pi].items, it = arr[ii];
+            if (!it || it.protected) return;
+            if (it.custom) arr.splice(ii, 1); else it.hidden = true;
+            hvRenderCustomEditor();
+        }
+        function ftToggleItem(pi, ii) {
+            const it = ftDraft.pages[pi].items[ii];
+            if (it) it.hidden = !it.hidden;
+            hvRenderCustomEditor();
+        }
+        function ftAddItem(pi, type) {
+            const id = hvNewId('f');
+            ftDraft.pages[pi].items.push(type === 'image'
+                ? { key: 'cf:' + id, custom: true, id: id, type: 'image', label: 'รูปภาพใหม่', placeholder: '' }
+                : { key: 'cf:' + id, custom: true, id: id, type: 'text', label: 'ช่องใหม่', placeholder: '' });
+            ftOpenPages[ftDraft.pages[pi].id] = true;
+            hvRenderCustomEditor();
+        }
+        function ftAddPage() {
+            const id = hvNewId('p');
+            ftDraft.pages.push({ id: id, builtin: false, title: 'หน้าเพิ่มเติม ' + (ftDraft.pages.filter(p => !p.builtin).length + 1), items: [] });
+            ftOpenPages[id] = true;
+            hvRenderCustomEditor();
+        }
+        function ftMovePage(pi, dir) {
+            const j = pi + dir;
+            if (j < 0 || j >= ftDraft.pages.length) return;
+            const t = ftDraft.pages[pi]; ftDraft.pages[pi] = ftDraft.pages[j]; ftDraft.pages[j] = t;
+            hvRenderCustomEditor();
+        }
+        function ftDelPage(pi) {
+            const d = ftDraft;
+            if (d.pages.length <= 1) { showToast('ต้องเหลืออย่างน้อย 1 หน้า', 'error'); return; }
+            const p = d.pages[pi];
+            const n = p.items.filter(i => !i.hidden).length;
+            if (!confirm(`ลบหน้า "${p.title || 'หน้านี้'}" และช่องกรอกข้อมูลในหน้านี้ทั้งหมด (${n} ช่อง)?\n(ช่อง "ชื่อ-นามสกุล" และ "ระดับชั้น" จะถูกย้ายไปหน้าอื่นให้อัตโนมัติ เพราะระบบต้องใช้)`)) return;
+            const dest = d.pages[pi === 0 ? 1 : 0];
+            p.items.forEach(it => {
+                if (it.protected) { dest.items.push(it); }
+                else if (!it.custom) { it.hidden = true; dest.items.push(it); }
+            });
+            d.pages.splice(pi, 1);
+            hvRenderCustomEditor();
+        }
+
+        function openFieldTextModal() {
+            hvBuildDraft();
+            ftOpenPages[ftDraft.pages[0].id] = true;
+            renderFieldTextModal();
+            openModal('modal-field-text');
+        }
+
+        function saveFieldTextSettings() {
+            const lk = {}, html = {}, ph = {};
+            Object.keys(ftDraft.lk).forEach(k => { const v = String(ftDraft.lk[k] || '').trim(); if (v) lk[k] = v; });
+            document.querySelectorAll('#field-text-groups [data-ftk]').forEach(el => {
+                const key = el.dataset.ftk;
+                const kind = el.dataset.ftkind;
+                const val = el.value.trim();
+                if (kind === 'lk') { if (val) lk[key] = val; else delete lk[key]; }
+                else if (!val) return; // ปล่อยว่าง = ใช้ค่าเริ่มต้น
+                else if (kind === 'html') html[key] = val;
+                else if (kind === 'ph') ph[key] = val;
+            });
+            db.settings.studentFieldText = { lk, html, ph };
+
+            const pages = [], fields = [], placement = {}, order = {}, hidden = [];
+            ftDraft.pages.forEach(p => {
+                if (!p.builtin) pages.push({ id: p.id, title: (p.title || '').trim() || 'หน้าเพิ่มเติม' });
+                order[p.id] = [];
+                p.items.forEach(it => {
+                    placement[it.key] = p.id;
+                    order[p.id].push(it.key);
+                    if (it.custom) fields.push({ id: it.id, page: p.id, type: it.type, label: (it.label || '').trim() || (it.type === 'image' ? 'รูปภาพ' : 'ช่องกรอกข้อมูล'), placeholder: (it.placeholder || '').trim() });
+                    else if (it.hidden) hidden.push(it.key);
+                });
+            });
+            db.settings.customForm = { pages, fields };
+            db.settings.formLayout = { pageOrder: ftDraft.pages.map(p => p.id), placement, order };
+            db.settings.hiddenFields = hidden;
+            saveState();
+            applyFieldText();
+            closeModal('modal-field-text');
+            showToast('บันทึกการปรับแต่งฟอร์มนักเรียนเรียบร้อยแล้ว', 'success');
+        }
+
+        function resetFieldTextSettings() {
+            if (!confirm('คืนค่าเริ่มต้นทั้งหมด? ข้อความที่แก้ไว้ ช่องที่ลบ การย้ายช่อง และหน้า/ช่องที่เพิ่มเองจะถูกล้างทั้งหมด')) return;
+            db.settings.studentFieldText = {};
+            db.settings.customForm = { pages: [], fields: [] };
+            db.settings.formLayout = {};
+            db.settings.hiddenFields = [];
+            saveState();
+            applyFieldText();
+            hvBuildDraft();
+            ftOpenPages[ftDraft.pages[0].id] = true;
+            renderFieldTextModal();
+            showToast('คืนค่าฟอร์มนักเรียนเป็นค่าเริ่มต้นทั้งหมดแล้ว', 'success');
+        }
+
+
+        // ---------- ตรวจชื่อ/ระดับชั้น (ช่องจำเป็น) — ทำงานได้แม้แอดมินย้ายช่องไปหน้าอื่น ----------
+        function hvNameStep() {
+            const el = document.getElementById('profile-std-name');
+            const st = el && el.closest('.student-step');
+            return st ? (Number(st.dataset.step) || 1) : 1;
+        }
+        function hvValidateRequired(jump) {
+            const name = document.getElementById('profile-std-name').value.trim();
+            const grade = document.getElementById('profile-std-grade').value;
+            let missId = null, msg = '';
+            if (!name) { missId = 'profile-std-name'; msg = 'กรุณากรอกชื่อ - นามสกุล นักเรียนก่อน'; }
+            else if (!grade) { missId = 'profile-std-grade'; msg = 'กรุณาเลือกระดับชั้น ม. ก่อน'; }
+            if (!missId) return true;
+            showToast(msg, 'error');
+            if (jump) {
+                const st = document.getElementById(missId).closest('.student-step');
+                if (st && Number(st.dataset.step)) { studentWizardStep = Number(st.dataset.step); renderStudentWizard(); }
+            }
+            return false;
+        }
+
+        // =====================================================================
+        // แอดมินแก้ไขข้อมูลนักเรียน = ใช้ฟอร์มเดียวกับหน้าแรกของนักเรียนเป๊ะ (ย้ายกรอบฟอร์มมาแสดงในหน้าต่างนี้)
+        // ครบทั้งรูปนักเรียน / รูปบ้าน / แผนที่ปักหมุด / ช่องและหน้าที่เพิ่มเอง
+        // =====================================================================
+        let adminEditId = null;
+
+        function openEditStudentModal(stdId) {
+            const std = db.students.find(s => s.id === stdId);
+            if (!std) return;
+            const panel = document.getElementById('student-form-panel');
+            const host = document.getElementById('edit-student-host');
+            if (!panel || !host) return;
+            adminEditRestore();
+
+            const anchor = document.createElement('div');
+            anchor.id = 'student-panel-anchor';
+            panel.parentNode.insertBefore(anchor, panel);
+            host.appendChild(panel);
+
+            adminEditId = std.id;
+            studentLogout(true); // ล้างฟอร์ม (ปลดล็อกช่องชื่อ/รหัสให้แอดมินแก้ได้)
+            studentSession = { name: std.name, code: std.code, existingId: std.id };
+            studentEntryChecked = true;
+            document.getElementById('edit-std-id').value = std.id;
+            fillStudentForm(std);
+            studentWizardStep = 1;
+            renderStudentWizard();
+            openModal('modal-edit-student');
+        }
+
+        // คืนกรอบฟอร์มกลับไปหน้าแรกของนักเรียน (เรียกอัตโนมัติเมื่อปิดหน้าต่างแก้ไข)
+        function adminEditRestore() {
+            const panel = document.getElementById('student-form-panel');
+            const anchor = document.getElementById('student-panel-anchor');
+            if (anchor && panel) { anchor.parentNode.insertBefore(panel, anchor); anchor.remove(); }
+            if (adminEditId !== null) { adminEditId = null; studentLogout(true); }
+        }
+
+        function hvAdminSaveEdit(name, code, data) {
+            const idx = db.students.findIndex(s => s.id === adminEditId);
+            if (idx === -1) { showToast('ไม่พบนักเรียนคนนี้ในระบบ', 'error'); return; }
+            // กันชื่อ/รหัสซ้ำกับนักเรียนคนอื่น (ยกเว้นตัวเอง)
+            const conflict = findStudentConflict(name, code, adminEditId);
+            if (conflict) {
+                const msg = conflict.field === 'code'
+                    ? `รหัสประจำตัว "${code}" ถูกใช้แล้วโดย ${conflict.student.name} กรุณาใช้รหัสอื่น`
+                    : `ชื่อ "${name}" มีอยู่ในระบบแล้ว (รหัส ${conflict.student.code}) กรุณาตรวจสอบชื่ออีกครั้ง`;
+                showToast(msg, 'error');
+                return;
+            }
+            Object.assign(db.students[idx], data, { code: code || db.students[idx].code });
+            saveState();
+            closeModal('modal-edit-student');
+            renderAdminStudents();
+            const profilesTab = document.getElementById('admin-content-profiles');
+            if (profilesTab && !profilesTab.classList.contains('hidden')) renderStudentProfilesDirectory();
+            showToast('แก้ไขข้อมูลนักเรียนเรียบร้อยแล้ว', 'success');
+        }
 
         applyBranding();
         cleanupTrash(); // ล้างรายการในถังขยะที่เก็บไว้เกิน 30 วันโดยอัตโนมัติ
@@ -2428,11 +3269,16 @@
         });
 
         function saveState() {
-            localStorage.setItem('hv_students', JSON.stringify(db.students));
-            localStorage.setItem('hv_teachers', JSON.stringify(db.teachers));
-            localStorage.setItem('hv_admins', JSON.stringify(db.admins));
-            localStorage.setItem('hv_settings', JSON.stringify(db.settings));
-            localStorage.setItem('hv_trash', JSON.stringify(db.trash));
+            try {
+                localStorage.setItem('hv_students', JSON.stringify(db.students));
+                localStorage.setItem('hv_teachers', JSON.stringify(db.teachers));
+                localStorage.setItem('hv_admins', JSON.stringify(db.admins));
+                localStorage.setItem('hv_settings', JSON.stringify(db.settings));
+                localStorage.setItem('hv_trash', JSON.stringify(db.trash));
+            } catch (err) {
+                console.error('localStorage เต็ม:', err);
+                showToast('พื้นที่จัดเก็บในเครื่องเต็ม (รูปภาพมีขนาดใหญ่) — ข้อมูลยังถูกส่งขึ้น Google Sheet', 'error');
+            }
             updateExecutiveStats();
             syncToGoogleSheet(); // ทุกครั้งที่บันทึก (เพิ่ม/แก้ไข/ลบ/บันทึกเยี่ยมบ้าน) จะส่งขึ้น Google Sheet อัตโนมัติ
         }
@@ -2598,6 +3444,7 @@
 
         // อัปเดตทุก element ในหน้าให้ตรงกับข้อความที่ตั้งค่าไว้ (หรือค่าเริ่มต้นถ้ายังไม่ได้ปรับแต่ง)
         function applyFieldText() {
+            hvRebuildStudentForm(); // สร้างหน้า 5 / หน้าเพิ่มเติม / ช่องเพิ่มเติม ก่อนใส่ข้อความ
             document.querySelectorAll('[data-lk]').forEach(el => { el.textContent = ftext(el.dataset.lk); });
             document.querySelectorAll('[data-lk-html]').forEach(el => { el.textContent = ftextHtml(el.dataset.lkHtml); });
             document.querySelectorAll('[data-ph]').forEach(el => { el.setAttribute('placeholder', ftextPh(el.dataset.ph)); });
@@ -2614,67 +3461,13 @@
             // อัปเดตหัวข้อ/ข้อความตัวอย่างของหน้าเข้าสู่ระบบครู/แอดมิน ให้ตรงกับแท็บที่กำลังเปิดอยู่ (ถ้ามี)
             const staffRoleEl = document.getElementById('staff-login-role');
             if(staffRoleEl && typeof switchStaffLoginRole === 'function') switchStaffLoginRole(staffRoleEl.value);
-        }
-
-        // วาดหน้าต่างปรับแต่งข้อความ (จัดกลุ่มตามหมวดในฟอร์ม) พร้อมค่าปัจจุบัน
-        function renderFieldTextModal() {
-            const container = document.getElementById('field-text-groups');
-            container.innerHTML = '';
-            const groups = [];
-            FIELD_TEXT_CONFIG.forEach(f => { if(!groups.includes(f.group)) groups.push(f.group); });
-
-            groups.forEach(g => {
-                const wrap = document.createElement('div');
-                wrap.innerHTML = `<h4 class="text-xs font-bold text-blue-700 bg-blue-50 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg mb-2.5"><i class="fa-solid fa-layer-group"></i> ${g}</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-1"></div>`;
-                const grid = wrap.querySelector('.grid');
-                FIELD_TEXT_CONFIG.filter(f => f.group === g).forEach(f => {
-                    const current = f.kind === 'lk' ? ftext(f.key) : f.kind === 'html' ? ftextHtml(f.key) : ftextPh(f.key);
-                    const kindNote = f.kind === 'ph' ? ' (ข้อความตัวอย่างในช่องว่าง)' : f.kind === 'html' ? ' (คำอธิบาย)' : '';
-                    const field = document.createElement('div');
-                    field.innerHTML = `<label class="block text-[11px] font-semibold text-slate-600 mb-1">${escapeHtml(f.def)}${kindNote}</label>
-                        <input type="text" data-ftk="${f.key}" data-ftkind="${f.kind}" value="${escapeHtml(current)}" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 outline-none focus:ring-2 focus:ring-blue-500">`;
-                    grid.appendChild(field);
-                });
-                container.appendChild(wrap);
-            });
+            hvApplyHiddenFields();
         }
 
         function escapeHtml(str) {
             const d = document.createElement('div');
             d.innerText = str === undefined || str === null ? '' : str;
             return d.innerHTML;
-        }
-
-        function openFieldTextModal() {
-            renderFieldTextModal();
-            openModal('modal-field-text');
-        }
-
-        function saveFieldTextSettings() {
-            const lk = {}, html = {}, ph = {};
-            document.querySelectorAll('#field-text-groups [data-ftk]').forEach(el => {
-                const key = el.dataset.ftk;
-                const kind = el.dataset.ftkind;
-                const val = el.value.trim();
-                if(!val) return; // ปล่อยว่าง = ใช้ค่าเริ่มต้น
-                if(kind === 'lk') lk[key] = val;
-                else if(kind === 'html') html[key] = val;
-                else if(kind === 'ph') ph[key] = val;
-            });
-            db.settings.studentFieldText = { lk, html, ph };
-            saveState();
-            applyFieldText();
-            closeModal('modal-field-text');
-            showToast('บันทึกข้อความฟอร์มนักเรียนเรียบร้อยแล้ว', 'success');
-        }
-
-        function resetFieldTextSettings() {
-            db.settings.studentFieldText = {};
-            saveState();
-            applyFieldText();
-            renderFieldTextModal();
-            showToast('คืนค่าข้อความฟอร์มเป็นค่าเริ่มต้นทั้งหมดแล้ว', 'success');
         }
 
         function applyBranding() {
@@ -2761,25 +3554,20 @@
             document.getElementById('staff-login-role').value = role;
             const btnTch = document.getElementById('staff-tab-login-teacher');
             const btnAdm = document.getElementById('staff-tab-login-admin');
-            const lblName = document.getElementById('staff-label-name');
             const lblCode = document.getElementById('staff-label-code');
-            const inputName = document.getElementById('staff-login-name');
             const inputCode = document.getElementById('staff-login-code');
 
             btnTch.className = "py-2.5 rounded-xl text-slate-600 transition hover:bg-white/50";
             btnAdm.className = "py-2.5 rounded-xl text-slate-600 transition hover:bg-white/50";
 
+            // ทั้งครูและแอดมินเข้าสู่ระบบด้วยรหัสอย่างเดียว (ไม่มีช่องกรอกชื่อแล้ว)
             if(role === 'teacher') {
                 btnTch.className = "py-2.5 rounded-xl bg-white shadow-sm text-blue-700 font-semibold transition duration-200";
-                lblName.innerText = ftext('staff-teacher-name');
                 lblCode.innerText = ftext('staff-teacher-code');
-                inputName.placeholder = ftextPh('staff-teacher-name');
                 inputCode.placeholder = ftextPh('staff-teacher-code');
             } else {
                 btnAdm.className = "py-2.5 rounded-xl bg-white shadow-sm text-blue-700 font-semibold transition duration-200";
-                lblName.innerText = ftext('staff-admin-name');
                 lblCode.innerText = ftext('staff-admin-code');
-                inputName.placeholder = ftextPh('staff-admin-name');
                 inputCode.placeholder = ftextPh('staff-admin-code');
             }
         }
@@ -2787,13 +3575,12 @@
         function handleStaffLogin(e) {
             e.preventDefault();
             const role = document.getElementById('staff-login-role').value;
-            const nameInput = document.getElementById('staff-login-name').value.trim();
             const codeInput = String(document.getElementById('staff-login-code').value).trim();
             const alertBox = document.getElementById('staff-login-alert');
             alertBox.classList.add('hidden');
 
             if(role === 'teacher') {
-                const found = db.teachers.find(t => t.name === nameInput && String(t.code).trim() === codeInput);
+                const found = db.teachers.find(t => String(t.code).trim() === codeInput);
                 if(found) {
                     currentUser = { role: 'teacher', data: found };
                     closeModal('modal-staff-login');
@@ -2802,7 +3589,7 @@
                     return;
                 }
             } else if(role === 'admin') {
-                const found = db.admins.find(a => a.name === nameInput && String(a.code).trim() === codeInput);
+                const found = db.admins.find(a => String(a.code).trim() === codeInput);
                 if(found) {
                     currentUser = { role: 'admin', data: found };
                     closeModal('modal-staff-login');
@@ -2811,6 +3598,8 @@
                     return;
                 }
             }
+            const alertSpan = alertBox.querySelector('span');
+            if(alertSpan) alertSpan.innerText = (role === 'teacher') ? 'รหัสครูไม่ถูกต้อง' : 'รหัสผ่านแอดมินไม่ถูกต้อง';
             alertBox.classList.remove('hidden');
         }
 
@@ -3022,9 +3811,9 @@
                     if(codeField) codeField.disabled = true;
                     studentEntryChecked = true;
                     showToast(`พบข้อมูลเดิมของ ${byCode.name} ระบบดึงข้อมูลมาให้แก้ไขแล้ว`, 'success');
-                    studentWizardStep = 1;
+                    studentWizardStep = hvNameStep();
                     renderStudentWizard();
-                    return false; // ค้างอยู่หน้า 1 ให้ตรวจดูข้อมูลที่ดึงมาก่อน แล้วค่อยกด "ถัดไป" อีกครั้ง
+                    return false; // ค้างอยู่หน้าเดิม ให้ตรวจดูข้อมูลที่ดึงมาก่อน แล้วค่อยกด "ถัดไป" อีกครั้ง
                 }
                 showToast('รหัสประจำตัวนี้มีอยู่ในระบบแล้ว แต่ชื่อไม่ตรงกับข้อมูลเดิม กรุณาตรวจสอบชื่อหรือรหัสของท่านอีกครั้ง (1 รหัส ใช้ได้เพียงคนเดียว)', 'error');
                 return false;
@@ -3192,7 +3981,7 @@
 
             prevBtn.classList.toggle('invisible', studentWizardStep === 1);
 
-            if(studentWizardStep === STUDENT_WIZARD_TOTAL_STEPS) {
+            if(studentWizardStep === HV_TOTAL_STEPS) {
                 nextBtn.classList.add('hidden');
                 saveBtn.classList.remove('hidden');
                 saveBtn.classList.add('flex');
@@ -3200,28 +3989,28 @@
                 nextBtn.classList.remove('hidden');
                 saveBtn.classList.add('hidden');
                 saveBtn.classList.remove('flex');
-                nextBtn.innerHTML = `ถัดไป: ${STUDENT_WIZARD_LABELS[studentWizardStep + 1]} <i class="fa-solid fa-arrow-right"></i>`;
+                nextBtn.innerHTML = `ถัดไป: ${HV_LABELS[studentWizardStep + 1]} <i class="fa-solid fa-arrow-right"></i>`;
             }
+            hvOnStudentStep(studentWizardStep);
         }
 
         // ตรวจว่าหน้าปัจจุบันกรอกข้อมูลที่จำเป็น (มี *) ครบหรือยัง ก่อนอนุญาตให้กดถัดไป
         function validateStudentWizardStep(step) {
-            if(step === 1) {
-                const name = document.getElementById('profile-std-name').value.trim();
-                const grade = document.getElementById('profile-std-grade').value;
-                if(!name) { showToast('กรุณากรอกชื่อ - นามสกุล นักเรียนก่อนไปหน้าถัดไป', 'error'); return false; }
-                if(!grade) { showToast('กรุณาเลือกระดับชั้น ม. ก่อนไปหน้าถัดไป', 'error'); return false; }
-            }
+            const st = document.querySelector(`#student-form-panel .student-step[data-step="${step}"]`);
+            if(!st) return true;
+            if(st.querySelector('#profile-std-name') && !document.getElementById('profile-std-name').value.trim()) { showToast('กรุณากรอกชื่อ - นามสกุล นักเรียนก่อนไปหน้าถัดไป', 'error'); return false; }
+            if(st.querySelector('#profile-std-grade') && !document.getElementById('profile-std-grade').value) { showToast('กรุณาเลือกระดับชั้น ม. ก่อนไปหน้าถัดไป', 'error'); return false; }
             return true;
         }
 
         function studentWizardGo(direction) {
             const next = studentWizardStep + direction;
-            if(next < 1 || next > STUDENT_WIZARD_TOTAL_STEPS) return;
+            if(next < 1 || next > HV_TOTAL_STEPS) return;
             // กดถัดไป (ไม่ใช่ย้อนกลับ) ต้องกรอกข้อมูลที่จำเป็นของหน้านี้ให้ครบก่อน
             if(direction > 0 && !validateStudentWizardStep(studentWizardStep)) return;
             // ออกจากหน้า 1 ครั้งแรก -> เช็คว่าชื่อ+รหัสตรงกับข้อมูลเดิมในระบบหรือไม่ (แทนหน้าเข้าสู่ระบบแยกต่างหาก)
-            if(direction > 0 && studentWizardStep === 1 && !checkExistingStudentEntry()) return;
+            const curStepEl = document.querySelector(`#student-form-panel .student-step[data-step="${studentWizardStep}"]`);
+            if(direction > 0 && curStepEl && curStepEl.querySelector('#profile-std-name') && !checkExistingStudentEntry()) return;
             studentWizardStep = next;
             renderStudentWizard();
         }
@@ -3234,17 +4023,13 @@
             const grade = document.getElementById('profile-std-grade').value;
             const code = document.getElementById('profile-std-code').value.trim();
 
-            if(!validateStudentWizardStep(1)) {
-                studentWizardStep = 1; renderStudentWizard();
-                return;
-            }
+            if(!hvValidateRequired(true)) return;
 
             const parentStatusChecked = document.querySelector('input[name="parent-status"]:checked');
 
             const data = {
                 name: name,
                 grade: Number(grade),
-                homeAddress: document.getElementById('profile-std-address').value.trim(),
                 gender: document.getElementById('profile-std-gender').value,
                 idCard: document.getElementById('profile-std-idcard').value.trim(),
                 dob: document.getElementById('profile-std-dob').value,
@@ -3291,6 +4076,9 @@
                     workplace: document.getElementById('profile-mother-workplace').value.trim()
                 }
             };
+
+            Object.assign(data, hvCollectStudentExtras()); // รูปนักเรียน/รูปบ้าน/หมุดบ้าน/ช่องที่เพิ่มเอง
+            if(adminEditId) { hvAdminSaveEdit(name, code, data); return; } // แอดมินแก้ไขข้อมูลนักเรียน (ใช้ฟอร์มเดียวกัน)
 
             // ใช้ id ของเซสชันที่เข้าสู่ระบบไว้เป็นหลัก (แม่นยำที่สุด) ถ้าไม่มีค่อย fallback ไปหาโดยรหัส
             let idx = -1;
@@ -3382,8 +4170,10 @@
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
                 
-                let locationBadge = '<span class="text-slate-400 font-normal">ยังไม่ได้กรอกที่อยู่</span>';
-                if(std.homeAddress) {
+                let locationBadge = '<span class="text-slate-400 font-normal">ยังไม่ได้ปักหมุด</span>';
+                if(hvHasPin(std)) {
+                    locationBadge = `<a href="${hvMapLink(std)}" target="_blank" rel="noopener" class="text-indigo-600 hover:underline font-medium flex items-center gap-1"><i class="fa-solid fa-location-dot text-rose-500"></i> ดูหมุดบ้าน</a>`;
+                } else if(std.homeAddress) {
                     locationBadge = `<span class="text-slate-700 font-medium flex items-center gap-1"><i class="fa-solid fa-house text-rose-500"></i> ${std.homeAddress}</span>`;
                 }
 
@@ -3449,6 +4239,8 @@
             }
 
             document.getElementById('tvs-body').innerHTML = `
+                ${hvViewMediaHtml(std)}
+
                 ${head('ข้อมูลส่วนตัว')}
                 ${row('เพศ', GENDER_LABELS[std.gender] || std.gender)}
                 ${row('วัน/เดือน/ปีเกิด', std.dob)}
@@ -3465,7 +4257,7 @@
                 ${row('สถานภาพบิดา-มารดา', std.parentStatus === 'other' ? (std.parentStatusOther || 'อื่นๆ') : (PARENT_STATUS_LABELS[std.parentStatus] || ''))}
                 ${row('เบอร์นักเรียน', std.studentPhone)}
                 ${row('เบอร์ผู้ปกครอง', std.parentPhone)}
-                ${row('ที่อยู่บ้านเลขที่', std.homeAddress)}
+                ${std.homeAddress ? row('ที่อยู่บ้าน (ที่กรอกไว้เดิม)', std.homeAddress) : ''}
 
                 ${head('การเดินทางมาโรงเรียน')}
                 ${row('ระยะทางจากบ้าน', std.distanceToSchool, ' กม.')}
@@ -3477,6 +4269,8 @@
                 ${head('ข้อมูลมารดา')}
                 ${parentBlock(m)}
 
+                ${hvExtrasRowsHtml(std, 'text-[11px] font-bold text-blue-700 bg-blue-50/70 px-2 py-1 rounded-md mt-3 mb-1.5')}
+
                 ${visitHtml}
             `;
 
@@ -3485,6 +4279,7 @@
                 openVisitForm(std.id);
             };
             openModal('modal-teacher-view-student');
+            hvInitViewMap(std);
         }
 
         function openVisitForm(stdId) {
@@ -3788,6 +4583,7 @@
                                 <i class="fa-solid fa-pen-to-square"></i> แก้ไข
                             </button>
                         </div>
+                        ${hvCardMediaHtml(std)}
                         <div class="text-slate-600 space-y-1.5">
                             ${head('ข้อมูลส่วนตัว')}
                             ${row('เพศ', GENDER_LABELS[std.gender] || std.gender)}
@@ -3807,7 +4603,7 @@
                             ${row('สถานภาพบิดา-มารดา', std.parentStatus === 'other' ? (std.parentStatusOther || 'อื่นๆ') : (PARENT_STATUS_LABELS[std.parentStatus] || ''))}
                             ${row('เบอร์นักเรียน', std.studentPhone)}
                             ${row('เบอร์ผู้ปกครอง', std.parentPhone)}
-                            ${row('ที่อยู่บ้านเลขที่', std.homeAddress)}
+                            ${std.homeAddress ? row('ที่อยู่บ้าน (ที่กรอกไว้เดิม)', std.homeAddress) : ''}
 
                             ${head('การเดินทางมาโรงเรียน')}
                             ${row('ระยะทางจากบ้าน', std.distanceToSchool, ' กม.')}
@@ -3834,6 +4630,7 @@
                             ${row('อาชีพ', m.occupation)}
                             ${row('รายได้', m.income ? Number(m.income).toLocaleString() : '', ' บาท/เดือน')}
                             ${row('สถานที่ทำงาน', m.workplace)}
+                            ${hvExtrasRowsHtml(std, 'text-[11px] font-bold text-blue-700 bg-blue-50/70 px-2 py-1 rounded-md mt-2.5 mb-1.5')}
                         </div>
                     `;
                     gradeGrid.appendChild(card);
@@ -4049,6 +4846,11 @@
                 return;
             }
 
+            if (db.admins.some(a => a.id !== admId && String(a.code).trim() === newCode)) {
+                showToast('รหัสนี้ถูกใช้แล้วโดยแอดมินอีกคน กรุณาใช้รหัสอื่น', 'error');
+                return;
+            }
+
             db.admins[idx].name = newName;
             db.admins[idx].code = newCode;
             saveState();
@@ -4119,184 +4921,6 @@
 
         // EDIT STUDENT NAME / CODE
         // ===== ตัวช่วยสำหรับฟอร์มแก้ไขของแอดมิน (โครงสร้างเดียวกับฟอร์มนักเรียน) =====
-
-        function ev(id) {
-            const el = document.getElementById('edit-p-' + id);
-            return el ? String(el.value).trim() : '';
-        }
-        function esv(id, value) {
-            const el = document.getElementById('edit-p-' + id);
-            if(el) el.value = value === undefined || value === null ? '' : value;
-        }
-
-        function toggleEditParentStatusOther() {
-            const checked = document.querySelector('input[name="edit-parent-status"]:checked');
-            const box = document.getElementById('edit-parent-status-other-box');
-            if(!box) return;
-            if(checked && checked.value === 'other') box.classList.remove('hidden');
-            else box.classList.add('hidden');
-        }
-
-        function renderEditWizard() {
-            document.querySelectorAll('.edit-step').forEach(el => {
-                el.classList.toggle('hidden', Number(el.dataset.step) !== editWizardStep);
-            });
-            document.querySelectorAll('#edit-wizard-steps .wizard-dot').forEach(el => {
-                const step = Number(el.dataset.step);
-                el.classList.toggle('active', step === editWizardStep);
-                el.classList.toggle('done', step < editWizardStep);
-            });
-
-            const prevBtn = document.getElementById('edit-wizard-prev');
-            const nextBtn = document.getElementById('edit-wizard-next');
-            const saveBtn = document.getElementById('edit-wizard-save');
-
-            prevBtn.classList.toggle('invisible', editWizardStep === 1);
-
-            if(editWizardStep === STUDENT_WIZARD_TOTAL_STEPS) {
-                nextBtn.classList.add('hidden');
-                saveBtn.classList.remove('hidden');
-                saveBtn.classList.add('flex');
-            } else {
-                nextBtn.classList.remove('hidden');
-                saveBtn.classList.add('hidden');
-                saveBtn.classList.remove('flex');
-                nextBtn.innerHTML = `ถัดไป: ${STUDENT_WIZARD_LABELS[editWizardStep + 1]} <i class="fa-solid fa-arrow-right"></i>`;
-            }
-        }
-
-        function validateEditWizardStep(step) {
-            if(step === 1) {
-                const name = document.getElementById('edit-p-std-name').value.trim();
-                const grade = document.getElementById('edit-p-std-grade').value;
-                if(!name) { showToast('กรุณากรอกชื่อ - นามสกุล นักเรียนก่อนไปหน้าถัดไป', 'error'); return false; }
-                if(!grade) { showToast('กรุณาเลือกระดับชั้น ม. ก่อนไปหน้าถัดไป', 'error'); return false; }
-            }
-            return true;
-        }
-
-        function editWizardGo(direction) {
-            const next = editWizardStep + direction;
-            if(next < 1 || next > STUDENT_WIZARD_TOTAL_STEPS) return;
-            if(direction > 0 && !validateEditWizardStep(editWizardStep)) return;
-            editWizardStep = next;
-            renderEditWizard();
-        }
-
-        function openEditStudentModal(stdId) {
-            const std = db.students.find(s => s.id === stdId);
-            if(!std) return;
-
-            document.getElementById('edit-std-id').value = std.id;
-
-            esv('std-name', std.name);
-            esv('std-grade', std.grade);
-            esv('std-code', std.code);
-            esv('std-gender', std.gender);
-            esv('std-idcard', std.idCard);
-            esv('std-dob', std.dob);
-            esv('std-age', std.age);
-            esv('std-ethnicity', std.ethnicity);
-            esv('std-nationality', std.nationality);
-            esv('std-religion', std.religion);
-            esv('std-height', std.height);
-            esv('std-weight', std.weight);
-            esv('std-disease', std.chronicDisease);
-            esv('std-father', std.fatherName);
-            esv('std-mother', std.motherName);
-            esv('std-phone', std.studentPhone);
-            esv('std-parent-phone', std.parentPhone);
-            esv('std-address', std.homeAddress);
-
-            document.querySelectorAll('input[name="edit-parent-status"]').forEach(r => { r.checked = (r.value === (std.parentStatus || '')); });
-            esv('std-parent-status-other', std.parentStatusOther);
-            toggleEditParentStatusOther();
-
-            esv('std-distance', std.distanceToSchool);
-            esv('std-travel', std.travelMethod);
-
-            const f = std.father || {};
-            ['name','age','idcard','ethnicity','nationality','religion','phone','occupation','income','workplace'].forEach(k => {
-                esv('father-' + k, f[k === 'idcard' ? 'idCard' : k]);
-            });
-            const m = std.mother || {};
-            ['name','age','idcard','ethnicity','nationality','religion','phone','occupation','income','workplace'].forEach(k => {
-                esv('mother-' + k, m[k === 'idcard' ? 'idCard' : k]);
-            });
-
-            editWizardStep = 1;
-            renderEditWizard();
-            openModal('modal-edit-student');
-        }
-
-        function confirmEditStudent() {
-            const stdId = document.getElementById('edit-std-id').value;
-            const newName = ev('std-name');
-            const newCode = ev('std-code');
-            const newGrade = ev('std-grade');
-
-            if(!validateEditWizardStep(1)) {
-                editWizardStep = 1; renderEditWizard();
-                return;
-            }
-
-            const idx = db.students.findIndex(s => s.id === stdId);
-            if(idx === -1) return;
-
-            // กันชื่อ/รหัสซ้ำกับนักเรียนคนอื่น (ยกเว้นตัวเอง) — 1 ชื่อ และ 1 รหัส มีได้แค่คนเดียวในระบบ
-            const editConflict = findStudentConflict(newName, newCode, stdId);
-            if(editConflict) {
-                const msg = editConflict.field === 'code'
-                    ? `รหัสประจำตัว "${newCode}" ถูกใช้แล้วโดย ${editConflict.student.name} กรุณาใช้รหัสอื่น`
-                    : `ชื่อ "${newName}" มีอยู่ในระบบแล้ว (รหัส ${editConflict.student.code}) กรุณาตรวจสอบชื่ออีกครั้ง`;
-                showToast(msg, 'error');
-                return;
-            }
-
-            const parentStatusChecked = document.querySelector('input[name="edit-parent-status"]:checked');
-
-            Object.assign(db.students[idx], {
-                name: newName,
-                code: newCode || db.students[idx].code,
-                grade: Number(newGrade),
-                gender: ev('std-gender'),
-                idCard: ev('std-idcard'),
-                dob: ev('std-dob'),
-                age: ev('std-age'),
-                ethnicity: ev('std-ethnicity'),
-                nationality: ev('std-nationality'),
-                religion: ev('std-religion'),
-                height: ev('std-height'),
-                weight: ev('std-weight'),
-                chronicDisease: ev('std-disease'),
-                fatherName: ev('std-father'),
-                motherName: ev('std-mother'),
-                studentPhone: ev('std-phone'),
-                parentPhone: ev('std-parent-phone'),
-                homeAddress: ev('std-address'),
-                parentStatus: parentStatusChecked ? parentStatusChecked.value : '',
-                parentStatusOther: ev('std-parent-status-other'),
-                distanceToSchool: ev('std-distance'),
-                travelMethod: ev('std-travel'),
-                father: {
-                    name: ev('father-name'), age: ev('father-age'), idCard: ev('father-idcard'),
-                    ethnicity: ev('father-ethnicity'), nationality: ev('father-nationality'), religion: ev('father-religion'),
-                    phone: ev('father-phone'), occupation: ev('father-occupation'), income: ev('father-income'), workplace: ev('father-workplace')
-                },
-                mother: {
-                    name: ev('mother-name'), age: ev('mother-age'), idCard: ev('mother-idcard'),
-                    ethnicity: ev('mother-ethnicity'), nationality: ev('mother-nationality'), religion: ev('mother-religion'),
-                    phone: ev('mother-phone'), occupation: ev('mother-occupation'), income: ev('mother-income'), workplace: ev('mother-workplace')
-                }
-            });
-
-            saveState();
-            closeModal('modal-edit-student');
-            renderAdminStudents();
-            const profilesTab = document.getElementById('admin-content-profiles');
-            if(profilesTab && !profilesTab.classList.contains('hidden')) renderStudentProfilesDirectory();
-            showToast('แก้ไขข้อมูลนักเรียนเรียบร้อยแล้ว', 'success');
-        }
 
         // ===== ฟอร์ม "เพิ่มนักเรียนใหม่" ของแอดมิน (วิซาร์ด 4 หน้าเหมือนฟอร์มที่นักเรียนกรอกเอง) =====
 
@@ -4489,6 +5113,11 @@
             const name = document.getElementById('new-adm-name').value.trim();
             const code = document.getElementById('new-adm-code').value.trim();
 
+            if (db.admins.some(a => String(a.code).trim() === code)) {
+                showToast('รหัสนี้ถูกใช้แล้วโดยแอดมินอีกคน (ระบบใช้รหัสอย่างเดียวในการเข้าสู่ระบบ) กรุณาใช้รหัสอื่น', 'error');
+                return;
+            }
+
             db.admins.push({ id: 'ADM_' + Date.now(), code, name, type: 'sub' });
             saveState();
             closeModal('modal-add-admin');
@@ -4505,7 +5134,7 @@
 
         // MODAL UTILITIES
         function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); if(id === 'modal-edit-student') adminEditRestore(); }
     </script>
 </body>
 </html>
