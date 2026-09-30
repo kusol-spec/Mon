@@ -2165,7 +2165,7 @@
             { key: 'house-out-label', kind: 'lk', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `รูปนอกบ้าน` },
             { key: 'house-in-label', kind: 'lk', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `รูปข้างในบ้าน` },
             { key: 'house-map-label', kind: 'lk', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `ปักหมุดตำแหน่งบ้านของตนเอง` },
-            { key: 'house-map-hint', kind: 'html', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `ลากแผนที่ หรือแตะบนแผนที่ ให้หมุดสีส้มตรงกลางชี้ที่บ้านของตนเอง (เหมือนปักหมุดที่อยู่ใน Shopee) — ระบบจะแสดงที่อยู่ของจุดนั้นให้ · หรือพิมพ์ค้นหาสถานที่ · หรือกดปุ่มเป้าเพื่อใช้ตำแหน่งปัจจุบัน` },
+            { key: 'house-map-hint', kind: 'html', group: 'หน้า 5 · สภาพบ้าน / ตำแหน่งบ้าน', def: `ลากแผนที่ หรือแตะบนแผนที่ ให้หมุดสีส้มตรงกลางชี้ที่บ้านของตนเอง (เหมือนปักหมุดที่อยู่ใน Shopee) — ระบบจะแสดงที่อยู่ของจุดนั้นให้ · หรือกดปุ่มเป้าเพื่อใช้ตำแหน่งปัจจุบัน (สลับเป็นมุมมองดาวเทียมได้ที่มุมขวาบนของแผนที่)` },
         ];
 
         // STUDENT DATA-ENTRY WIZARD (4 steps): personal+family / travel / father / mother
@@ -2192,7 +2192,7 @@
         let HV_TOTAL_STEPS = 5;
         const HV_PROTECTED_KEYS = ['std-name', 'std-grade']; // ระบบต้องใช้ชื่อ+ระดับชั้นในการบันทึก/ค้นหานักเรียน จึงลบไม่ได้ (แต่แก้ชื่อหัวข้อและย้ายหน้าได้)
         const HV_PAGE_TITLE_KEY = { '1': 'tab-personal', '2': 'tab-travel', '3': 'tab-father', '4': 'tab-mother', '5': 'tab-house' };
-        const hvState = { photo: '', houseOut: '', houseIn: '', lat: null, lng: null, imgs: {}, address: '', addrLoading: false, labelFor: null };
+        const hvState = { photo: '', houseOut: '', houseIn: '', lat: null, lng: null, imgs: {}, address: '', addrLoading: false, labelFor: null, addr: { no: '', road: '', sub: '', dist: '', prov: '', zip: '' }, addrManual: {} };
         let hvMap = null, hvViewMap = null, hvMapTouched = false;
         let HV_REG = null;
 
@@ -2291,18 +2291,25 @@
             return `<div class="col-span-2">
                 <p class="text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1.5"><i class="fa-solid fa-location-dot text-rose-500"></i> <span data-lk="house-map-label"></span></p>
                 <p class="text-[10px] text-slate-400 mb-2 leading-relaxed" data-lk-html="house-map-hint"></p>
-                <div class="flex gap-2 mb-2">
-                    <input id="hv-map-search" type="text" placeholder="ค้นหาชื่อหมู่บ้าน / ถนน / ตำบล" class="${HV_INPUT_CLS} flex-1" onkeydown="if(event.key==='Enter'){event.preventDefault();hvSearchPlace();}">
-                    <button type="button" onclick="hvSearchPlace()" class="shrink-0 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs"><i class="fa-solid fa-magnifying-glass"></i></button>
-                </div>
-                <div id="hv-search-results" class="hidden mb-2 rounded-xl border border-slate-200 bg-white overflow-hidden text-[11px] max-h-44 overflow-y-auto"></div>
                 <div class="hv-mapwrap">
                     <div id="hv-map" class="hv-map-box w-full h-72 rounded-2xl border border-slate-200 bg-slate-100"></div>
                     <div id="hv-center-pin" class="hv-center-pin" aria-hidden="true">${HV_PIN_SVG}<span class="hv-pin-shadow"></span></div>
                     <button type="button" onclick="hvLocateMe()" class="hv-gps-btn" title="ใช้ตำแหน่งปัจจุบันของฉัน"><i class="fa-solid fa-crosshairs"></i></button>
                 </div>
                 <p id="hv-map-coords" class="text-[11px] text-slate-500 mt-2 leading-relaxed"></p>
-                <p id="hv-map-address" class="hidden text-[11px] text-slate-600 mt-1.5 leading-relaxed p-2.5 rounded-xl bg-slate-50 border border-slate-200"></p>
+                <p id="hv-loc-acc" class="hidden text-[11px] mt-1 leading-relaxed"></p>
+                <div class="mt-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                    <p class="text-[11px] font-semibold text-slate-600 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-map-location-dot text-rose-500"></i> ที่อยู่ของหมุด <span id="hv-addr-loading" class="hidden text-slate-400 font-normal"><i class="fa-solid fa-spinner fa-spin"></i> กำลังหาที่อยู่...</span></p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="block"><span class="text-[10px] text-slate-500">บ้านเลขที่</span><input id="hv-addr-no" oninput="hvAddrInput('no',this.value)" type="text" placeholder="เช่น 12/3" class="${HV_INPUT_CLS} mt-0.5"></label>
+                        <label class="block"><span class="text-[10px] text-slate-500">หมู่ที่ / ซอย / ถนน</span><input id="hv-addr-road" oninput="hvAddrInput('road',this.value)" type="text" class="${HV_INPUT_CLS} mt-0.5"></label>
+                        <label class="block"><span class="text-[10px] text-slate-500">ตำบล / แขวง</span><input id="hv-addr-sub" oninput="hvAddrInput('sub',this.value)" type="text" class="${HV_INPUT_CLS} mt-0.5"></label>
+                        <label class="block"><span class="text-[10px] text-slate-500">อำเภอ / เขต</span><input id="hv-addr-dist" oninput="hvAddrInput('dist',this.value)" type="text" class="${HV_INPUT_CLS} mt-0.5"></label>
+                        <label class="block"><span class="text-[10px] text-slate-500">จังหวัด</span><input id="hv-addr-prov" oninput="hvAddrInput('prov',this.value)" type="text" class="${HV_INPUT_CLS} mt-0.5"></label>
+                        <label class="block"><span class="text-[10px] text-slate-500">รหัสไปรษณีย์</span><input id="hv-addr-zip" oninput="hvAddrInput('zip',this.value)" type="text" inputmode="numeric" class="${HV_INPUT_CLS} mt-0.5"></label>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-1.5 leading-relaxed">ระบบกรอกให้อัตโนมัติจากตำแหน่งหมุด — บ้านเลขที่มักไม่มีในแผนที่ กรุณาพิมพ์เอง และแก้ช่องอื่นได้ถ้าไม่ตรง</p>
+                </div>
                 <div class="flex flex-wrap gap-2 mt-2">
                     <button type="button" onclick="hvConfirmPin()" class="text-[11px] px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center gap-1.5"><i class="fa-solid fa-check"></i> ยืนยันตำแหน่งบ้านที่หมุดชี้</button>
                     <button type="button" onclick="hvClearPin()" class="text-[11px] px-3 py-2 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium flex items-center gap-1.5"><i class="fa-solid fa-eraser"></i> ลบหมุด</button>
@@ -2566,20 +2573,24 @@
         // ---------- พื้นแผนที่หน้าตาแบบแผนที่ GPS (CARTO Voyager) — สำรองด้วย Esri Street ถ้าโหลดไม่ได้ ----------
         // หมายเหตุ: tile.openstreetmap.org ปิดกั้นเว็บที่ไม่ส่ง Referer/ไม่ทำตามนโยบาย จึงเลิกใช้ตัวนั้น
         function hvAddBaseTiles(map) {
-            const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                subdomains: 'abcd', maxZoom: 19,
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            });
-            const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            // CARTO เริ่มบังคับ API key (ขึ้นลายน้ำ API KEY REQUIRED) จึงเปลี่ยนมาใช้ Esri (ไม่ต้องใช้ key) + ตัวสลับดาวเทียม
+            const street = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 19, attribution: 'Tiles &copy; Esri'
             });
-            let loaded = 0, errors = 0, swapped = false;
-            carto.on('tileload', () => { loaded++; });
-            carto.on('tileerror', () => {
-                errors++;
-                if (!swapped && loaded === 0 && errors >= 4) { swapped = true; map.removeLayer(carto); esri.addTo(map); }
+            const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19, attribution: 'Tiles &copy; Esri'
             });
-            carto.addTo(map);
+            const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            });
+            let loaded = 0, errors = 0, swapped = false;
+            street.on('tileload', () => { loaded++; });
+            street.on('tileerror', () => {
+                errors++;
+                if (!swapped && loaded === 0 && errors >= 4) { swapped = true; map.removeLayer(street); osm.addTo(map); }
+            });
+            street.addTo(map);
+            L.control.layers({ 'แผนที่': street, 'ดาวเทียม': sat }, null, { position: 'topright', collapsed: true }).addTo(map);
         }
 
         // ---------- แผนที่ปักหมุดแบบ Shopee: หมุดอยู่กลางจอ ลากแผนที่ให้ตรงบ้าน ----------
@@ -2598,7 +2609,7 @@
                 hvMap = L.map(el, { scrollWheelZoom: true, tap: true }).setView(has ? [hvState.lat, hvState.lng] : [13.7563, 100.5018], has ? 18 : 6);
                 hvAddBaseTiles(hvMap);
                 const pin = () => document.getElementById('hv-center-pin');
-                hvMap.on('dragstart', () => { hvMapTouched = true; });
+                hvMap.on('dragstart', () => { hvMapTouched = true; hvClearAcc(); });
                 hvMap.on('movestart', () => { const p = pin(); if (p) p.classList.add('lift'); });
                 hvMap.on('moveend', () => {
                     const p = pin(); if (p) p.classList.remove('lift');
@@ -2619,14 +2630,14 @@
             }
             setTimeout(() => { if (hvMap) hvMap.invalidateSize(); }, 150);
         }
-        function hvGoTo(lat, lng, label) {
+        function hvGoTo(lat, lng, label, zoom) {
             hvEnsureMap();
             hvState.lat = Number(lat); hvState.lng = Number(lng);
             hvState.address = label || '';
             hvState.labelFor = label ? { lat: hvState.lat, lng: hvState.lng } : null;
             hvState.addrLoading = false;
             hvRefreshMedia();
-            if (hvMap) { hvMapTouched = true; hvMap.setView([hvState.lat, hvState.lng], 18); }
+            if (hvMap) { hvMapTouched = true; hvMap.setView([hvState.lat, hvState.lng], zoom || 18); }
             if (!label) hvScheduleReverse(hvState.lat, hvState.lng);
         }
         function hvSetPin(lat, lng) { hvGoTo(lat, lng); }
@@ -2642,29 +2653,116 @@
         function hvClearPin() {
             hvState.lat = null; hvState.lng = null; hvMapTouched = false;
             hvState.address = ''; hvState.addrLoading = false; hvState.labelFor = null;
+            hvState.addr = { no: '', road: '', sub: '', dist: '', prov: '', zip: '' }; hvState.addrManual = {}; hvClearAcc();
             hvRevSeq++; clearTimeout(hvRevTimer);
             hvRefreshMedia();
         }
 
         // ---------- ปุ่มเป้า: หาตำแหน่งปัจจุบันของเครื่อง ----------
-        function hvLocateMe() {
-            if (!navigator.geolocation) { showToast('เครื่องนี้ไม่รองรับการหาตำแหน่ง กรุณาพิมพ์ค้นหาหรือลากแผนที่เพื่อปักหมุดเอง', 'error'); return; }
-            if (window.isSecureContext === false) { showToast('การหาตำแหน่งต้องเปิดเว็บผ่าน https:// (หรือ localhost) — ตอนนี้ให้พิมพ์ค้นหาหรือลากแผนที่แทนได้', 'error'); return; }
-            hvEnsureMap();
+        let hvLocating = false, hvLocWatch = null, hvLocTimer = null, hvLocBest = null, hvLocFixes = 0, hvLocDrag = null;
+        function hvLocIcon(spin) {
             const icon = document.querySelector('.hv-gps-btn i');
-            const reset = () => { if (icon) icon.className = 'fa-solid fa-crosshairs'; };
-            if (icon) icon.className = 'fa-solid fa-spinner fa-spin';
-            navigator.geolocation.getCurrentPosition(
-                p => { reset(); hvGoTo(p.coords.latitude, p.coords.longitude); showToast('พบตำแหน่งปัจจุบันแล้ว — ขยับแผนที่ให้หมุดตรงบ้านได้เลย', 'success'); },
-                err => {
-                    reset();
-                    const msg = err && err.code === 1 ? 'ยังไม่ได้อนุญาตให้เข้าถึงตำแหน่ง — กดอนุญาตตำแหน่งในเบราว์เซอร์แล้วลองใหม่ หรือพิมพ์ค้นหา/ลากแผนที่เอง'
-                        : err && err.code === 3 ? 'หาตำแหน่งนานเกินไป ลองอีกครั้ง หรือพิมพ์ค้นหา/ลากแผนที่เอง'
-                        : 'อ่านตำแหน่งไม่ได้ ลองอีกครั้ง หรือพิมพ์ค้นหา/ลากแผนที่เอง';
-                    showToast(msg, 'error');
-                },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-            );
+            if (icon) icon.className = spin ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-crosshairs';
+        }
+        function hvLocStop() {
+            hvLocating = false;
+            if (hvLocWatch !== null) { navigator.geolocation.clearWatch(hvLocWatch); hvLocWatch = null; }
+            clearTimeout(hvLocTimer); hvLocTimer = null;
+            if (hvMap && hvLocDrag) { hvMap.off('dragstart', hvLocDrag); hvLocDrag = null; }
+            hvLocIcon(false);
+        }
+        function hvShowLocHelp(kind) {
+            const old = document.getElementById('hv-loc-help'); if (old) old.remove();
+            const ua = navigator.userAgent || '';
+            const inApp = /Line\/|FBAN|FBAV|Instagram|MicroMessenger|Messenger/i.test(ua);
+            const isIOS = /iPhone|iPad|iPod/i.test(ua);
+            const title = kind === 'denied' ? 'ยังไม่ได้อนุญาตให้เข้าถึงตำแหน่ง'
+                : kind === 'timeout' ? 'ยังหาตำแหน่งไม่เจอ' : 'เครื่องยังอ่านตำแหน่งไม่ได้';
+            const steps = isIOS
+                ? ['เปิด <b>ตั้งค่า › ความเป็นส่วนตัวและความปลอดภัย › บริการหาตำแหน่ง</b> ให้เป็น "เปิด"',
+                   'เลื่อนหา <b>Safari</b> (หรือ Chrome ที่ใช้อยู่) แล้วเลือก <b>"ขณะใช้แอป"</b> และเปิด "ตำแหน่งที่แน่นอน"',
+                   'กลับมาที่หน้านี้ แล้วกดปุ่มเป้าอีกครั้ง']
+                : ['ปัดแถบด้านบนลงมา แล้วเปิด <b>ตำแหน่ง (Location / GPS)</b> ของโทรศัพท์',
+                   'แตะไอคอนรูปล็อกข้างชื่อเว็บในเบราว์เซอร์ › <b>สิทธิ์ / ตั้งค่าเว็บไซต์ › ตำแหน่ง › อนุญาต</b>',
+                   'กลับมาที่หน้านี้ แล้วกดปุ่มเป้าอีกครั้ง'];
+            const box = document.createElement('div');
+            box.id = 'hv-loc-help';
+            box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
+            box.innerHTML = `<div style="background:#fff;border-radius:20px;max-width:380px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto">
+                <div style="font-weight:700;color:#0f172a;font-size:15px;margin-bottom:6px"><i class="fa-solid fa-location-crosshairs" style="color:#ee4d2d"></i> ${title}</div>
+                <p style="font-size:12px;color:#475569;line-height:1.6;margin-bottom:8px">${inApp ? 'ตอนนี้เปิดผ่านแอปอื่น (เช่น LINE/Facebook) ซึ่งมักไม่ให้ใช้ตำแหน่ง — กดเมนู <b>⋮ / ⋯ › เปิดในเบราว์เซอร์</b> (Chrome หรือ Safari) แล้วลองใหม่ได้เลย<br><br>' : ''}ทำตามนี้เพื่อให้หาตำแหน่งเจอ:</p>
+                <ol style="font-size:12px;color:#334155;line-height:1.7;padding-left:18px;list-style:decimal;margin-bottom:10px">${steps.map(s => '<li>' + s + '</li>').join('')}</ol>
+                ${kind === 'timeout' ? '<p style="font-size:11px;color:#64748b;line-height:1.6;margin-bottom:10px">ถ้าอยู่ในอาคาร ลองออกมาใกล้หน้าต่าง/กลางแจ้ง หรือลากแผนที่ปักหมุดเองก็ได้</p>' : ''}
+                <div style="display:flex;gap:8px">
+                    <button type="button" id="hv-loc-retry" style="flex:1;padding:10px;border-radius:12px;background:#4f46e5;color:#fff;font-size:12px;font-weight:600">ลองอีกครั้ง</button>
+                    <button type="button" id="hv-loc-close" style="flex:1;padding:10px;border-radius:12px;border:1px solid #cbd5e1;color:#475569;font-size:12px;font-weight:600">ปิด</button>
+                </div></div>`;
+            document.body.appendChild(box);
+            document.getElementById('hv-loc-close').onclick = () => box.remove();
+            document.getElementById('hv-loc-retry').onclick = () => { box.remove(); hvLocateMe(); };
+        }
+        let hvAccCircle = null;
+        function hvClearAcc() {
+            if (hvAccCircle && hvMap) { hvMap.removeLayer(hvAccCircle); }
+            hvAccCircle = null;
+            const t = document.getElementById('hv-loc-acc'); if (t) { t.classList.add('hidden'); t.innerHTML = ''; }
+        }
+        function hvShowAcc(lat, lng, acc, final) {
+            if (hvMap && acc <= 5000) {
+                if (hvAccCircle) hvMap.removeLayer(hvAccCircle);
+                hvAccCircle = L.circle([lat, lng], { radius: acc, color: '#4f46e5', weight: 1, fillColor: '#6366f1', fillOpacity: 0.12, interactive: false }).addTo(hvMap);
+            }
+            const t = document.getElementById('hv-loc-acc'); if (!t) return;
+            const m = Math.round(acc);
+            const good = acc <= 30, mid = acc <= 100;
+            t.className = 'text-[11px] mt-1 leading-relaxed ' + (good ? 'text-emerald-600' : mid ? 'text-amber-600' : 'text-rose-500');
+            t.innerHTML = '<i class="fa-solid fa-satellite-dish"></i> ความแม่นยำประมาณ ' + m + ' เมตร' +
+                (good ? ' — แม่นยำดี' : mid ? ' — ใกล้เคียง ลากแผนที่ปรับให้หมุดตรงบ้านอีกนิด' : ' — ยังคลาดเคลื่อนมาก (เครื่องอาจใช้สัญญาณเน็ต/ไวไฟ ไม่ใช่ GPS) ลากแผนที่ให้หมุดตรงหลังคาบ้าน (เปลี่ยนเป็นมุมมอง "ดาวเทียม" มุมขวาบนของแผนที่จะช่วยได้) แล้วกดยืนยัน') +
+                (final ? '' : ' · กำลังปรับให้แม่นขึ้น...');
+        }
+        function hvLocAccept(p) {
+            if (!hvLocating) return;
+            const acc = p.coords.accuracy || 99999;
+            hvLocFixes++;
+            if (hvLocFixes === 1 || acc < hvLocBest * 0.9) {
+                hvLocBest = hvLocFixes === 1 ? acc : Math.min(hvLocBest, acc);
+                const zoom = acc > 1000 ? 15 : acc > 300 ? 16 : acc > 100 ? 17 : 18;
+                hvGoTo(p.coords.latitude, p.coords.longitude, null, zoom);
+                const done = acc <= 20;
+                hvShowAcc(p.coords.latitude, p.coords.longitude, acc, done);
+                if (hvLocFixes === 1) showToast('พบตำแหน่งแล้ว — กำลังปรับให้แม่นขึ้น', 'success');
+                if (done) hvLocStop();
+            }
+        }
+        // ปุ่มเป้า: ขออนุญาตตำแหน่ง แล้วค้นหาต่อเนื่องจนเจอ (ทั้งมือถือและคอม) — กดซ้ำเพื่อยกเลิก
+        function hvLocateMe() {
+            if (hvLocating) { hvLocStop(); showToast('ยกเลิกการหาตำแหน่งแล้ว', 'error'); return; }
+            if (!navigator.geolocation) { showToast('เครื่องนี้ไม่รองรับการหาตำแหน่ง กรุณาลากแผนที่เพื่อปักหมุดเอง', 'error'); return; }
+            if (window.isSecureContext === false) { showToast('การหาตำแหน่งต้องเปิดเว็บผ่าน https:// (หรือ localhost) — ตอนนี้ให้ลากแผนที่ปักหมุดเองแทนได้', 'error'); return; }
+            hvEnsureMap();
+            hvLocating = true; hvLocBest = null; hvLocFixes = 0;
+            hvLocIcon(true);
+            showToast('กำลังหาตำแหน่ง... ถ้ามีข้อความขอเข้าถึงตำแหน่ง ให้กด "อนุญาต" (แตะปุ่มเป้าอีกครั้งเพื่อยกเลิก)', 'success');
+            const onErr = err => {
+                if (!hvLocating) return;
+                if (err && err.code === 1) { hvLocStop(); hvShowLocHelp('denied'); }
+                // code 2 / 3: ยังไม่ยอมแพ้ ให้ระบบลองต่อจนกว่าจะครบเวลา
+            };
+            const opts = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
+            // 1) ขอแบบเร็ว (ใช้สัญญาณเครือข่าย/ค่าล่าสุด) เพื่อให้ได้จุดคร่าวๆ ก่อน และเป็นตัวเรียกหน้าต่างขออนุญาต
+            navigator.geolocation.getCurrentPosition(hvLocAccept, onErr, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+            // 2) เฝ้าดู GPS ต่อเนื่อง ให้แม่นยำขึ้นเรื่อยๆ
+            hvLocWatch = navigator.geolocation.watchPosition(hvLocAccept, onErr, opts);
+            // ถ้าผู้ใช้ลากแผนที่เอง ให้หยุดเลื่อนอัตโนมัติ
+            if (hvMap) { hvLocDrag = () => { hvLocStop(); }; hvMap.on('dragstart', hvLocDrag); }
+            // เวลารวมสูงสุด 60 วินาที
+            hvLocTimer = setTimeout(() => {
+                if (!hvLocating) return;
+                const found = hvLocFixes > 0;
+                hvLocStop();
+                if (!found) hvShowLocHelp('timeout');
+                else { const t = document.getElementById('hv-loc-acc'); if (t) t.innerHTML = t.innerHTML.replace(' · กำลังปรับให้แม่นขึ้น...', ''); if (hvLocBest > 100) showToast('ตำแหน่งยังไม่แม่นพอ กรุณาลากแผนที่ให้หมุดตรงบ้านแล้วกดยืนยัน', 'error'); }
+            }, 60000);
         }
 
         // ---------- ค้นหาสถานที่ + หาที่อยู่จากพิกัด (Nominatim → สำรอง Photon) ----------
@@ -2697,43 +2795,77 @@
             feats.sort((a, b) => (b.properties.countrycode === 'TH') - (a.properties.countrycode === 'TH'));
             return feats.map(f => ({ lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], label: hvPhotonLabel(f.properties || {}) }));
         }
+        function hvStrip(v, re) { return String(v || '').replace(re, '').trim(); }
+        function hvParseNominatim(r) {
+            const ad = (r && r.address) || {};
+            const vals = Object.keys(ad).filter(k => !/postcode|country|ISO|region/i.test(k)).map(k => String(ad[k]));
+            const find = re => vals.find(v => re.test(v)) || '';
+            const out = { no: ad.house_number || '', road: '', sub: '', dist: '', prov: '', zip: ad.postcode || '' };
+            out.sub = hvStrip(find(/^(ตำบล|แขวง)/) || ad.suburb || ad.quarter || '', /^(ตำบล|แขวง)\s*/);
+            out.dist = hvStrip(find(/^(อำเภอ|เขต)/) || ad.city_district || ad.county || ad.district || '', /^(อำเภอ|เขต)\s*/);
+            out.prov = hvStrip(find(/^จังหวัด/) || ad.state || ad.province || '', /^จังหวัด\s*/);
+            out.road = ad.road || ad.hamlet || ad.village || '';
+            return out;
+        }
+        function hvParsePhoton(p) {
+            return {
+                no: p.housenumber || '', road: p.street || '',
+                sub: hvStrip(p.locality || '', /^(ตำบล|แขวง)\s*/),
+                dist: hvStrip(p.county || p.district || '', /^(อำเภอ|เขต)\s*/),
+                prov: hvStrip(p.state || p.city || '', /^จังหวัด\s*/),
+                zip: p.postcode || ''
+            };
+        }
         async function hvGeocodeReverse(lat, lng) {
             try {
-                const r = await hvFetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=th&lat=' + lat + '&lon=' + lng);
-                if (r && r.display_name) return r.display_name;
+                const r = await hvFetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&accept-language=th&lat=' + lat + '&lon=' + lng);
+                if (r && r.address) return hvParseNominatim(r);
             } catch (e) { /* ลองตัวสำรอง */ }
             try {
-                const j = await hvFetchJson('https://photon.komoot.io/reverse?lat=' + lat + '&lon=' + lng);
+                const j = await hvFetchJson('https://photon.komoot.io/reverse?lang=default&lat=' + lat + '&lon=' + lng);
                 const f = j.features && j.features[0];
-                if (f) return hvPhotonLabel(f.properties || {});
+                if (f) return hvParsePhoton(f.properties || {});
             } catch (e) {}
-            return '';
+            return null;
+        }
+        function hvComposeAddr() {
+            const a = hvState.addr || {};
+            const sub = a.sub ? (/^กรุงเทพ/.test(a.prov || '') ? 'แขวง' : 'ต.') + a.sub : '';
+            const dist = a.dist ? (/^กรุงเทพ/.test(a.prov || '') ? 'เขต' : 'อ.') + a.dist : '';
+            const prov = a.prov ? (/^กรุงเทพ/.test(a.prov) ? a.prov : 'จ.' + a.prov) : '';
+            return [a.no ? 'บ้านเลขที่ ' + a.no : '', a.road, sub, dist, prov, a.zip].filter(Boolean).join(' ');
+        }
+        function hvAddrInput(k, v) {
+            hvState.addr[k] = v.trim();
+            hvState.addrManual[k] = true;
+            hvState.address = hvComposeAddr();
         }
         function hvScheduleReverse(lat, lng) {
             clearTimeout(hvRevTimer);
             hvState.addrLoading = true; hvRenderAddress();
             hvRevTimer = setTimeout(async () => {
                 const seq = ++hvRevSeq;
-                const text = await hvGeocodeReverse(lat, lng);
+                const r = await hvGeocodeReverse(lat, lng);
                 if (seq !== hvRevSeq) return; // มีการขยับหมุดใหม่แล้ว ทิ้งผลเก่า
                 hvState.addrLoading = false;
-                hvState.address = text || '';
+                if (r) {
+                    const a = hvState.addr, man = hvState.addrManual;
+                    ['no', 'road', 'sub', 'dist', 'prov', 'zip'].forEach(k => { if (r[k]) a[k] = r[k]; else if (!man[k]) a[k] = ''; });
+                    hvState.address = hvComposeAddr();
+                } else {
+                    showToast('หาที่อยู่จากแผนที่ไม่สำเร็จ (อินเทอร์เน็ต/เซิร์ฟเวอร์แผนที่) — กรอกที่อยู่เองในช่องด้านล่างได้', 'error');
+                }
                 hvRenderAddress();
             }, 600);
         }
         function hvRenderAddress() {
-            const el = document.getElementById('hv-map-address');
-            if (!el) return;
-            if (hvState.lat === null) { el.classList.add('hidden'); el.innerHTML = ''; return; }
-            if (hvState.addrLoading) {
-                el.classList.remove('hidden');
-                el.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-slate-400"></i> กำลังหาที่อยู่ของจุดนี้...';
-            } else if (hvState.address) {
-                el.classList.remove('hidden');
-                el.innerHTML = '<i class="fa-solid fa-location-dot text-rose-500"></i> <span class="font-medium">' + escapeHtml(hvState.address) + '</span>';
-            } else {
-                el.classList.add('hidden'); el.innerHTML = '';
-            }
+            const a = hvState.addr || {};
+            [['no', 'hv-addr-no'], ['road', 'hv-addr-road'], ['sub', 'hv-addr-sub'], ['dist', 'hv-addr-dist'], ['prov', 'hv-addr-prov'], ['zip', 'hv-addr-zip']].forEach(([k, id]) => {
+                const el = document.getElementById(id);
+                if (el && document.activeElement !== el) el.value = a[k] || '';
+            });
+            const ld = document.getElementById('hv-addr-loading');
+            if (ld) ld.classList.toggle('hidden', !hvState.addrLoading);
         }
         async function hvSearchPlace() {
             const inp = document.getElementById('hv-map-search');
@@ -2776,7 +2908,8 @@
             const extra = Object.assign({}, (ex && ex.extra) || {});
             document.querySelectorAll('#student-form-panel [data-cf]').forEach(el => { extra[el.dataset.cf] = String(el.value).trim(); });
             hvCustomForm().fields.forEach(f => { if (f.type === 'image') extra[f.id] = hvState.imgs[f.id] || ''; });
-            extra._mapAddress = hvState.address || '';
+            extra._addrParts = Object.assign({}, hvState.addr);
+            extra._mapAddress = hvComposeAddr() || hvState.address || '';
             return {
                 photo: hvState.photo, houseOutPhoto: hvState.houseOut, houseInPhoto: hvState.houseIn,
                 homeLat: hvState.lat, homeLng: hvState.lng, extra: extra
@@ -2790,6 +2923,7 @@
             hvState.lng = hvHasPin(std) ? Number(std.homeLng) : null;
             const ex = std.extra || {};
             hvState.address = ex._mapAddress || ''; hvState.addrLoading = false; hvState.labelFor = null;
+            hvState.addr = Object.assign({ no: '', road: '', sub: '', dist: '', prov: '', zip: '' }, ex._addrParts || {}); hvState.addrManual = {};
             hvState.imgs = {};
             hvCustomForm().fields.forEach(f => { if (f.type === 'image') hvState.imgs[f.id] = ex[f.id] || ''; });
             document.querySelectorAll('#student-form-panel [data-cf]').forEach(el => { el.value = ex[el.dataset.cf] !== undefined ? ex[el.dataset.cf] : ''; });
@@ -2802,6 +2936,7 @@
         function hvResetExtras() {
             hvState.photo = ''; hvState.houseOut = ''; hvState.houseIn = ''; hvState.lat = null; hvState.lng = null; hvState.imgs = {};
             hvState.address = ''; hvState.addrLoading = false; hvState.labelFor = null;
+            hvState.addr = { no: '', road: '', sub: '', dist: '', prov: '', zip: '' }; hvState.addrManual = {};
             hvMapTouched = false;
             hvRefreshMedia();
         }
