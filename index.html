@@ -2291,6 +2291,7 @@
             return `<div class="col-span-2">
                 <p class="text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1.5"><i class="fa-solid fa-location-dot text-rose-500"></i> <span data-lk="house-map-label"></span></p>
                 <p class="text-[10px] text-slate-400 mb-2 leading-relaxed" data-lk-html="house-map-hint"></p>
+                ${hvInApp() ? `<button type="button" onclick="hvShowLocHelp('inapp')" class="w-full text-left mb-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed"><i class="fa-solid fa-triangle-exclamation"></i> เปิดผ่านแอปแชท/โซเชียลอยู่ — มือถือมักไม่ขึ้นหน้าต่างขออนุญาตตำแหน่ง <b class="underline">แตะที่นี่เพื่อดูวิธีเปิดในเบราว์เซอร์</b></button>` : ''}
                 <div class="hv-mapwrap">
                     <div id="hv-map" class="hv-map-box w-full h-72 rounded-2xl border border-slate-200 bg-slate-100"></div>
                     <div id="hv-center-pin" class="hv-center-pin" aria-hidden="true">${HV_PIN_SVG}<span class="hv-pin-shadow"></span></div>
@@ -2671,35 +2672,84 @@
             if (hvMap && hvLocDrag) { hvMap.off('dragstart', hvLocDrag); hvLocDrag = null; }
             hvLocIcon(false);
         }
+        let hvDenyCount = 0;
+        function hvInApp() { return /Line\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Messenger|TikTok|Twitter|; wv\)/i.test(navigator.userAgent || ''); }
+        function hvExternalUrl() {
+            try { const u = new URL(location.href); if (/Line\//i.test(navigator.userAgent || '')) u.searchParams.set('openExternalBrowser', '1'); return u.toString(); } catch (e) { return location.href; }
+        }
+        function hvAndroidIntent() {
+            return 'intent://' + location.host + location.pathname + location.search + '#Intent;scheme=' + location.protocol.replace(':', '') + ';package=com.android.chrome;end';
+        }
+        function hvCloseLocHelp() { const o = document.getElementById('hv-loc-help'); if (o) o.remove(); }
+        // ถ้าผู้ใช้ไปเปิดสิทธิ์ตำแหน่งในตั้งค่าแล้วกลับมา ให้เริ่มหาตำแหน่งให้อัตโนมัติ
+        function hvWatchPerm() {
+            const check = async () => {
+                if (!document.getElementById('hv-loc-help') || document.hidden) return;
+                try {
+                    const st = await navigator.permissions.query({ name: 'geolocation' });
+                    if (st.state === 'granted') { hvCloseLocHelp(); hvLocateMe(); }
+                } catch (e) {}
+            };
+            document.addEventListener('visibilitychange', check);
+            try { navigator.permissions.query({ name: 'geolocation' }).then(st => { st.onchange = check; }); } catch (e) {}
+        }
+        let hvPermWatching = false;
         function hvShowLocHelp(kind) {
-            const old = document.getElementById('hv-loc-help'); if (old) old.remove();
+            hvCloseLocHelp();
+            if (!hvPermWatching) { hvPermWatching = true; hvWatchPerm(); }
             const ua = navigator.userAgent || '';
-            const inApp = /Line\/|FBAN|FBAV|Instagram|MicroMessenger|Messenger/i.test(ua);
             const isIOS = /iPhone|iPad|iPod/i.test(ua);
-            const title = kind === 'denied' ? 'ยังไม่ได้อนุญาตให้เข้าถึงตำแหน่ง'
+            const isLine = /Line\//i.test(ua);
+            const canIntent = /Android/i.test(ua) && location.protocol !== 'file:';
+            const title = kind === 'inapp' ? 'เปิดในเบราว์เซอร์ก่อนนะ'
+                : kind === 'denied' ? 'ตำแหน่งถูกปิดไว้สำหรับเว็บนี้'
                 : kind === 'timeout' ? 'ยังหาตำแหน่งไม่เจอ' : 'เครื่องยังอ่านตำแหน่งไม่ได้';
-            const steps = isIOS
-                ? ['เปิด <b>ตั้งค่า › ความเป็นส่วนตัวและความปลอดภัย › บริการหาตำแหน่ง</b> ให้เป็น "เปิด"',
-                   'เลื่อนหา <b>Safari</b> (หรือ Chrome ที่ใช้อยู่) แล้วเลือก <b>"ขณะใช้แอป"</b> และเปิด "ตำแหน่งที่แน่นอน"',
-                   'กลับมาที่หน้านี้ แล้วกดปุ่มเป้าอีกครั้ง']
-                : ['ปัดแถบด้านบนลงมา แล้วเปิด <b>ตำแหน่ง (Location / GPS)</b> ของโทรศัพท์',
-                   'แตะไอคอนรูปล็อกข้างชื่อเว็บในเบราว์เซอร์ › <b>สิทธิ์ / ตั้งค่าเว็บไซต์ › ตำแหน่ง › อนุญาต</b>',
-                   'กลับมาที่หน้านี้ แล้วกดปุ่มเป้าอีกครั้ง'];
+            let body = '';
+            if (kind === 'inapp') {
+                body = `<p style="font-size:12px;color:#475569;line-height:1.6;margin-bottom:8px">ตอนนี้เปิดเว็บผ่านแอปแชท/โซเชียล (เช่น LINE, Facebook) ซึ่ง<b>มักไม่มีหน้าต่างขออนุญาตตำแหน่ง</b> ต้องเปิดเว็บนี้ใน <b>${isIOS ? 'Safari' : 'Chrome'}</b> แทน แล้วกดปุ่มเป้าอีกครั้ง จะมีหน้าต่างให้กด "อนุญาต"</p>
+                    <ol style="font-size:12px;color:#334155;line-height:1.7;padding-left:18px;list-style:decimal;margin-bottom:10px">
+                    ${isLine ? '<li>กดปุ่ม <b>"เปิดในเบราว์เซอร์"</b> ด้านล่าง หรือแตะเมนู <b>⋮ / ⋯</b> มุมจอ แล้วเลือก <b>เปิดในเบราว์เซอร์</b></li>' : canIntent ? '<li>กดปุ่ม <b>"เปิดใน Chrome"</b> ด้านล่าง หรือแตะเมนู <b>⋮ / ⋯</b> แล้วเลือก <b>เปิดในเบราว์เซอร์</b></li>' : '<li>กด <b>"คัดลอกลิงก์"</b> ด้านล่าง แล้วไปเปิด ' + (isIOS ? 'Safari' : 'Chrome') + ' วางลิงก์ที่ช่องที่อยู่เว็บ (หรือแตะเมนู ⋯ › เปิดใน Safari)</li>'}
+                    <li>เมื่อเว็บเปิดแล้ว ไปหน้าปักหมุด กดปุ่มเป้าสีส้ม และกด <b>อนุญาต</b></li></ol>`;
+            } else {
+                const steps = isIOS
+                    ? ['เปิด <b>ตั้งค่า › ความเป็นส่วนตัวและความปลอดภัย › บริการหาตำแหน่ง</b> ให้เป็น "เปิด"',
+                       'เลื่อนหา <b>Safari</b> (หรือ Chrome ที่ใช้อยู่) แล้วเลือก <b>"ขณะใช้แอป"</b> และเปิด "ตำแหน่งที่แน่นอน"',
+                       'ถ้ายังไม่ได้: ใน Safari แตะ <b>ᴀA ที่ช่องที่อยู่เว็บ › การตั้งค่าเว็บไซต์ › ตำแหน่ง › อนุญาต</b>']
+                    : ['ปัดแถบด้านบนลงมา แล้วเปิด <b>ตำแหน่ง (Location / GPS)</b> ของโทรศัพท์',
+                       'ใน Chrome แตะไอคอน <b>ตั้งค่า/รูปล็อกข้างชื่อเว็บ › สิทธิ์ › ตำแหน่ง › อนุญาต</b> (ถ้าไม่เจอ: ⋮ › การตั้งค่า › การตั้งค่าเว็บไซต์ › ตำแหน่ง แล้วลบเว็บนี้ออกจากรายการ "บล็อก")'];
+                body = `<p style="font-size:12px;color:#475569;line-height:1.6;margin-bottom:8px">${kind === 'denied' ? 'เบราว์เซอร์จำไว้ว่าเคยกด "ไม่อนุญาต" (หรือปิดหน้าต่างขออนุญาต) จึง<b>ไม่ขึ้นหน้าต่างถามซ้ำ</b> ต้องไปเปิดสิทธิ์เองแบบนี้:' : 'ลองทำตามนี้เพื่อให้หาตำแหน่งเจอ:'}</p>
+                    <ol style="font-size:12px;color:#334155;line-height:1.7;padding-left:18px;list-style:decimal;margin-bottom:10px">${steps.map(x => '<li>' + x + '</li>').join('')}<li>กลับมาที่หน้านี้ ระบบจะเริ่มหาตำแหน่งให้เองเมื่อเปิดสิทธิ์แล้ว (หรือกดปุ่มด้านล่าง)</li></ol>
+                    ${kind === 'timeout' ? '<p style="font-size:11px;color:#64748b;line-height:1.6;margin-bottom:10px">ถ้าอยู่ในอาคาร ลองออกมาใกล้หน้าต่าง/กลางแจ้ง หรือลากแผนที่ปักหมุดเองก็ได้</p>' : ''}`;
+            }
+            const primary = kind === 'inapp'
+                ? (isLine ? `<a href="${hvExternalUrl()}" style="flex:1;text-align:center;padding:10px;border-radius:12px;background:#4f46e5;color:#fff;font-size:12px;font-weight:600;text-decoration:none">เปิดในเบราว์เซอร์</a>`
+                    : canIntent ? `<a href="${hvAndroidIntent()}" style="flex:1;text-align:center;padding:10px;border-radius:12px;background:#4f46e5;color:#fff;font-size:12px;font-weight:600;text-decoration:none">เปิดใน Chrome</a>`
+                    : `<button type="button" id="hv-loc-copy" style="flex:1;padding:10px;border-radius:12px;background:#4f46e5;color:#fff;font-size:12px;font-weight:600">คัดลอกลิงก์</button>`)
+                : `<button type="button" id="hv-loc-retry" style="flex:1;padding:10px;border-radius:12px;background:#4f46e5;color:#fff;font-size:12px;font-weight:600">${kind === 'denied' ? 'ตรวจสอบอีกครั้ง' : 'ลองอีกครั้ง'}</button>`;
             const box = document.createElement('div');
             box.id = 'hv-loc-help';
             box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;';
             box.innerHTML = `<div style="background:#fff;border-radius:20px;max-width:380px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto">
                 <div style="font-weight:700;color:#0f172a;font-size:15px;margin-bottom:6px"><i class="fa-solid fa-location-crosshairs" style="color:#ee4d2d"></i> ${title}</div>
-                <p style="font-size:12px;color:#475569;line-height:1.6;margin-bottom:8px">${inApp ? 'ตอนนี้เปิดผ่านแอปอื่น (เช่น LINE/Facebook) ซึ่งมักไม่ให้ใช้ตำแหน่ง — กดเมนู <b>⋮ / ⋯ › เปิดในเบราว์เซอร์</b> (Chrome หรือ Safari) แล้วลองใหม่ได้เลย<br><br>' : ''}ทำตามนี้เพื่อให้หาตำแหน่งเจอ:</p>
-                <ol style="font-size:12px;color:#334155;line-height:1.7;padding-left:18px;list-style:decimal;margin-bottom:10px">${steps.map(s => '<li>' + s + '</li>').join('')}</ol>
-                ${kind === 'timeout' ? '<p style="font-size:11px;color:#64748b;line-height:1.6;margin-bottom:10px">ถ้าอยู่ในอาคาร ลองออกมาใกล้หน้าต่าง/กลางแจ้ง หรือลากแผนที่ปักหมุดเองก็ได้</p>' : ''}
-                <div style="display:flex;gap:8px">
-                    <button type="button" id="hv-loc-retry" style="flex:1;padding:10px;border-radius:12px;background:#4f46e5;color:#fff;font-size:12px;font-weight:600">ลองอีกครั้ง</button>
+                ${body}
+                <div style="display:flex;gap:8px">${primary}
+                    ${kind === 'inapp' && (isLine || canIntent) ? '<button type="button" id="hv-loc-copy" style="flex:1;padding:10px;border-radius:12px;border:1px solid #cbd5e1;color:#475569;font-size:12px;font-weight:600">คัดลอกลิงก์</button>' : ''}
                     <button type="button" id="hv-loc-close" style="flex:1;padding:10px;border-radius:12px;border:1px solid #cbd5e1;color:#475569;font-size:12px;font-weight:600">ปิด</button>
                 </div></div>`;
             document.body.appendChild(box);
-            document.getElementById('hv-loc-close').onclick = () => box.remove();
-            document.getElementById('hv-loc-retry').onclick = () => { box.remove(); hvLocateMe(); };
+            const c = document.getElementById('hv-loc-close'); if (c) c.onclick = hvCloseLocHelp;
+            const r = document.getElementById('hv-loc-retry'); if (r) r.onclick = () => { hvCloseLocHelp(); hvLocateMe(); };
+            const cp = document.getElementById('hv-loc-copy'); if (cp) cp.onclick = () => hvCopyText(hvExternalUrl().replace(/[?&]openExternalBrowser=1/, ''), 'คัดลอกลิงก์แล้ว — ไปวางในเบราว์เซอร์ได้เลย');
+        }
+        async function hvHandleDenied() {
+            if (hvInApp()) { hvShowLocHelp('inapp'); return; }
+            let st = 'unknown';
+            try { if (navigator.permissions && navigator.permissions.query) st = (await navigator.permissions.query({ name: 'geolocation' })).state; } catch (e) {}
+            if (st === 'prompt' || (st === 'unknown' && ++hvDenyCount < 2)) {
+                showToast('ยังไม่ได้กด "อนุญาต" — กดปุ่มเป้าอีกครั้ง แล้วเลือก "อนุญาต" ที่หน้าต่างที่เด้งขึ้นมา', 'error');
+                return;
+            }
+            hvShowLocHelp('denied');
         }
         let hvAccCircle = null;
         function hvClearAcc() {
@@ -2723,7 +2773,7 @@
         function hvLocAccept(p) {
             if (!hvLocating) return;
             const acc = p.coords.accuracy || 99999;
-            hvLocFixes++;
+            hvLocFixes++; hvDenyCount = 0;
             if (hvLocFixes === 1 || acc < hvLocBest * 0.9) {
                 hvLocBest = hvLocFixes === 1 ? acc : Math.min(hvLocBest, acc);
                 const zoom = acc > 1000 ? 15 : acc > 300 ? 16 : acc > 100 ? 17 : 18;
@@ -2745,7 +2795,7 @@
             showToast('กำลังหาตำแหน่ง... ถ้ามีข้อความขอเข้าถึงตำแหน่ง ให้กด "อนุญาต" (แตะปุ่มเป้าอีกครั้งเพื่อยกเลิก)', 'success');
             const onErr = err => {
                 if (!hvLocating) return;
-                if (err && err.code === 1) { hvLocStop(); hvShowLocHelp('denied'); }
+                if (err && err.code === 1) { hvLocStop(); hvHandleDenied(); }
                 // code 2 / 3: ยังไม่ยอมแพ้ ให้ระบบลองต่อจนกว่าจะครบเวลา
             };
             const opts = { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 };
