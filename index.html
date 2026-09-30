@@ -2291,7 +2291,7 @@
             return `<div class="col-span-2">
                 <p class="text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1.5"><i class="fa-solid fa-location-dot text-rose-500"></i> <span data-lk="house-map-label"></span></p>
                 <p class="text-[10px] text-slate-400 mb-2 leading-relaxed" data-lk-html="house-map-hint"></p>
-                ${hvInApp() ? `<button type="button" onclick="hvShowLocHelp('inapp')" class="w-full text-left mb-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed"><i class="fa-solid fa-triangle-exclamation"></i> เปิดผ่านแอปแชท/โซเชียลอยู่ — มือถือมักไม่ขึ้นหน้าต่างขออนุญาตตำแหน่ง <b class="underline">แตะที่นี่เพื่อดูวิธีเปิดในเบราว์เซอร์</b></button>` : ''}
+                ${hvInApp() ? `<button type="button" onclick="hvShowLocHelp('inapp')" class="w-full text-left mb-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 leading-relaxed"><i class="fa-solid fa-triangle-exclamation"></i> เปิดผ่านแอปแชท/โซเชียลอยู่ — มือถือมักไม่ขึ้นหน้าต่างขออนุญาตตำแหน่ง <b class="underline">แตะที่นี่เพื่อดูวิธีเปิดในเบราว์เซอร์</b><br>หลังเปิดในเบราว์เซอร์แล้ว ให้กด <b>ปุ่มสีส้มรูปเป้า 🎯 มุมขวาล่างของแผนที่</b> แล้วกด "อนุญาต"</button>` : ''}
                 <div class="hv-mapwrap">
                     <div id="hv-map" class="hv-map-box w-full h-72 rounded-2xl border border-slate-200 bg-slate-100"></div>
                     <div id="hv-center-pin" class="hv-center-pin" aria-hidden="true">${HV_PIN_SVG}<span class="hv-pin-shadow"></span></div>
@@ -2709,16 +2709,17 @@
                 body = `<p style="font-size:12px;color:#475569;line-height:1.6;margin-bottom:8px">ตอนนี้เปิดเว็บผ่านแอปแชท/โซเชียล (เช่น LINE, Facebook) ซึ่ง<b>มักไม่มีหน้าต่างขออนุญาตตำแหน่ง</b> ต้องเปิดเว็บนี้ใน <b>${isIOS ? 'Safari' : 'Chrome'}</b> แทน แล้วกดปุ่มเป้าอีกครั้ง จะมีหน้าต่างให้กด "อนุญาต"</p>
                     <ol style="font-size:12px;color:#334155;line-height:1.7;padding-left:18px;list-style:decimal;margin-bottom:10px">
                     ${isLine ? '<li>กดปุ่ม <b>"เปิดในเบราว์เซอร์"</b> ด้านล่าง หรือแตะเมนู <b>⋮ / ⋯</b> มุมจอ แล้วเลือก <b>เปิดในเบราว์เซอร์</b></li>' : canIntent ? '<li>กดปุ่ม <b>"เปิดใน Chrome"</b> ด้านล่าง หรือแตะเมนู <b>⋮ / ⋯</b> แล้วเลือก <b>เปิดในเบราว์เซอร์</b></li>' : '<li>กด <b>"คัดลอกลิงก์"</b> ด้านล่าง แล้วไปเปิด ' + (isIOS ? 'Safari' : 'Chrome') + ' วางลิงก์ที่ช่องที่อยู่เว็บ (หรือแตะเมนู ⋯ › เปิดใน Safari)</li>'}
-                    <li>เมื่อเว็บเปิดแล้ว ไปหน้าปักหมุด กดปุ่มเป้าสีส้ม และกด <b>อนุญาต</b></li></ol>`;
+                    <li>เมื่อเว็บเปิดแล้ว ไปหน้าปักหมุด แล้วกด <b>ปุ่มสีส้มรูปเป้า 🎯 ที่มุมขวาล่างของแผนที่</b> จะมีหน้าต่างขึ้นมา ให้กด <b>อนุญาต</b></li></ol>`;
             } else {
                 const steps = isIOS
                     ? ['เปิด <b>ตั้งค่า › ความเป็นส่วนตัวและความปลอดภัย › บริการหาตำแหน่ง</b> ให้เป็น "เปิด"',
                        'เลื่อนหา <b>Safari</b> (หรือ Chrome ที่ใช้อยู่) แล้วเลือก <b>"ขณะใช้แอป"</b> และเปิด "ตำแหน่งที่แน่นอน"',
                        'ถ้ายังไม่ได้: ใน Safari แตะ <b>ᴀA ที่ช่องที่อยู่เว็บ › การตั้งค่าเว็บไซต์ › ตำแหน่ง › อนุญาต</b>']
-                    : ['ปัดแถบด้านบนลงมา แล้วเปิด <b>ตำแหน่ง (Location / GPS)</b> ของโทรศัพท์',
-                       'ใน Chrome แตะไอคอน <b>ตั้งค่า/รูปล็อกข้างชื่อเว็บ › สิทธิ์ › ตำแหน่ง › อนุญาต</b> (ถ้าไม่เจอ: ⋮ › การตั้งค่า › การตั้งค่าเว็บไซต์ › ตำแหน่ง แล้วลบเว็บนี้ออกจากรายการ "บล็อก")'];
+                    : ['แตะ <b>ไอคอนซ้ายสุดของช่องที่อยู่เว็บ</b> (รูปล็อก หรือรูปปรับแต่ง ⚙︎ ตรงหน้าชื่อเว็บ) › <b>สิทธิ์</b> › <b>ตำแหน่ง</b> › เลือก <b>อนุญาต</b> (หรือกด <b>รีเซ็ตสิทธิ์</b> เพื่อให้หน้าต่างถามกลับมาเหมือนเดิม)',
+                       'ถ้ายังไม่ได้: เปิดแอป <b>ตั้งค่าเครื่อง › แอป › Chrome › สิทธิ์ › ตำแหน่ง › อนุญาต</b> และปัดแถบด้านบนลงมาเปิด <b>ตำแหน่ง (GPS)</b>']
                 body = `<p style="font-size:12px;color:#475569;line-height:1.6;margin-bottom:8px">${kind === 'denied' ? 'เบราว์เซอร์จำไว้ว่าเคยกด "ไม่อนุญาต" (หรือปิดหน้าต่างขออนุญาต) จึง<b>ไม่ขึ้นหน้าต่างถามซ้ำ</b> ต้องไปเปิดสิทธิ์เองแบบนี้:' : 'ลองทำตามนี้เพื่อให้หาตำแหน่งเจอ:'}</p>
                     <ol style="font-size:12px;color:#334155;line-height:1.7;padding-left:18px;list-style:decimal;margin-bottom:10px">${steps.map(x => '<li>' + x + '</li>').join('')}<li>กลับมาที่หน้านี้ ระบบจะเริ่มหาตำแหน่งให้เองเมื่อเปิดสิทธิ์แล้ว (หรือกดปุ่มด้านล่าง)</li></ol>
+                    ${kind === 'denied' ? '<p style="font-size:11px;color:#475569;line-height:1.6;margin-bottom:10px;padding:8px;border-radius:10px;background:#f1f5f9"><b>ทางลัด:</b> เปิดลิงก์เว็บนี้ใน <b>แท็บไม่ระบุตัวตน</b> (Chrome: ⋮ › แท็บที่ไม่ระบุตัวตนใหม่) หรือใช้เบราว์เซอร์อื่น เช่น Samsung Internet / Firefox หน้าต่างขออนุญาตจะขึ้นใหม่ทันที</p>' : ''}
                     ${kind === 'timeout' ? '<p style="font-size:11px;color:#64748b;line-height:1.6;margin-bottom:10px">ถ้าอยู่ในอาคาร ลองออกมาใกล้หน้าต่าง/กลางแจ้ง หรือลากแผนที่ปักหมุดเองก็ได้</p>' : ''}`;
             }
             const primary = kind === 'inapp'
@@ -2733,7 +2734,7 @@
                 <div style="font-weight:700;color:#0f172a;font-size:15px;margin-bottom:6px"><i class="fa-solid fa-location-crosshairs" style="color:#ee4d2d"></i> ${title}</div>
                 ${body}
                 <div style="display:flex;gap:8px">${primary}
-                    ${kind === 'inapp' && (isLine || canIntent) ? '<button type="button" id="hv-loc-copy" style="flex:1;padding:10px;border-radius:12px;border:1px solid #cbd5e1;color:#475569;font-size:12px;font-weight:600">คัดลอกลิงก์</button>' : ''}
+                    ${(kind === 'denied') || (kind === 'inapp' && (isLine || canIntent)) ? '<button type="button" id="hv-loc-copy" style="flex:1;padding:10px;border-radius:12px;border:1px solid #cbd5e1;color:#475569;font-size:12px;font-weight:600">คัดลอกลิงก์</button>' : ''}
                     <button type="button" id="hv-loc-close" style="flex:1;padding:10px;border-radius:12px;border:1px solid #cbd5e1;color:#475569;font-size:12px;font-weight:600">ปิด</button>
                 </div></div>`;
             document.body.appendChild(box);
@@ -2792,7 +2793,7 @@
             hvEnsureMap();
             hvLocating = true; hvLocBest = null; hvLocFixes = 0;
             hvLocIcon(true);
-            showToast('กำลังหาตำแหน่ง... ถ้ามีข้อความขอเข้าถึงตำแหน่ง ให้กด "อนุญาต" (แตะปุ่มเป้าอีกครั้งเพื่อยกเลิก)', 'success');
+            if (Date.now() - (window._hvLocToastAt || 0) > 8000) { window._hvLocToastAt = Date.now(); showToast('กำลังหาตำแหน่ง... ถ้ามีข้อความขอเข้าถึงตำแหน่ง ให้กด "อนุญาต"', 'success'); }
             const onErr = err => {
                 if (!hvLocating) return;
                 if (err && err.code === 1) { hvLocStop(); hvHandleDenied(); }
