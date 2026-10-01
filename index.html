@@ -1151,7 +1151,7 @@
             <div class="flex items-start justify-between gap-3">
                 <div>
                     <h3 class="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
-                        <i class="fa-solid fa-pen-to-square text-blue-600"></i> แก้ไขข้อมูลนักเรียน
+                        <i class="fa-solid fa-pen-to-square text-blue-600" id="edit-modal-icon"></i> <span id="edit-modal-title">แก้ไขข้อมูลนักเรียน</span>
                     </h3>
                     <p class="text-xs text-slate-500">หน้าตาเหมือนแบบฟอร์มที่นักเรียนกรอกเอง ครบทุกหน้า (รวมรูปนักเรียน รูปบ้าน ตำแหน่งบ้าน และช่องที่เพิ่มเอง) — กด "บันทึกข้อมูลทั้งหมด" ในหน้าสุดท้ายเพื่อบันทึก</p>
                 </div>
@@ -2028,8 +2028,10 @@
                 localStorage.setItem('hv_settings', JSON.stringify(db.settings));
                 applyBranding();
                 console.log('✅ โหลดข้อมูลล่าสุดจาก Google Sheet สำเร็จ');
+                return true;
             } catch (err) {
                 console.error('❌ โหลดจาก Google Sheet ไม่สำเร็จ ใช้ข้อมูลในเครื่องแทน:', err);
+                return false;
             }
         }
 
@@ -3399,6 +3401,7 @@
             panel.parentNode.insertBefore(anchor, panel);
             host.appendChild(panel);
 
+            hvSetEditModalTitle(false);
             adminEditId = std.id;
             studentLogout(true); // ล้างฟอร์ม (ปลดล็อกช่องชื่อ/รหัสให้แอดมินแก้ได้)
             studentSession = { name: std.name, code: std.code, existingId: std.id };
@@ -3418,7 +3421,33 @@
             if (adminEditId !== null) { adminEditId = null; studentLogout(true); }
         }
 
+        function hvSetEditModalTitle(isNew) {
+            const t = document.getElementById('edit-modal-title'); if (t) t.textContent = isNew ? 'เพิ่มนักเรียนใหม่' : 'แก้ไขข้อมูลนักเรียน';
+            const ic = document.getElementById('edit-modal-icon'); if (ic) ic.className = isNew ? 'fa-solid fa-user-plus text-blue-600' : 'fa-solid fa-pen-to-square text-blue-600';
+        }
         function hvAdminSaveEdit(name, code, data) {
+            if (adminEditId === '__new__') { // แอดมินเพิ่มนักเรียนใหม่ (ใช้ฟอร์มเดียวกับหน้านักเรียน)
+                const conflictNew = findStudentConflict(name, code, null);
+                if (conflictNew) {
+                    const msgNew = conflictNew.field === 'code'
+                        ? `รหัสประจำตัว "${code}" ถูกใช้แล้วโดย ${conflictNew.student.name} กรุณาใช้รหัสอื่น`
+                        : `ชื่อ "${name}" มีอยู่ในระบบแล้ว (รหัส ${conflictNew.student.code}) กรุณาตรวจสอบชื่ออีกครั้ง`;
+                    showToast(msgNew, 'error');
+                    return;
+                }
+                db.students.push(Object.assign({
+                    id: 'STD_' + Date.now(),
+                    code: code || ('STD' + String(Date.now()).slice(-5)),
+                    room: 1, visitStatus: 'pending', visitData: null
+                }, data));
+                saveState();
+                closeModal('modal-edit-student');
+                renderAdminStudents();
+                const pt = document.getElementById('admin-content-profiles');
+                if (pt && !pt.classList.contains('hidden')) renderStudentProfilesDirectory();
+                showToast('เพิ่มนักเรียนใหม่เรียบร้อยแล้ว', 'success');
+                return;
+            }
             const idx = db.students.findIndex(s => s.id === adminEditId);
             if (idx === -1) { showToast('ไม่พบนักเรียนคนนี้ในระบบ', 'error'); return; }
             // กันชื่อ/รหัสซ้ำกับนักเรียนคนอื่น (ยกเว้นตัวเอง)
@@ -3439,9 +3468,199 @@
             showToast('แก้ไขข้อมูลนักเรียนเรียบร้อยแล้ว', 'success');
         }
 
+        // รายชื่อนักเรียนตามทะเบียน ปีการศึกษา 2569 (จากรูปรายชื่อ ม.1-ม.6) — ใช้เติมนักเรียนที่ยังไม่มีในระบบ [ชั้น, ห้อง, รหัส, ชื่อ]
+        const HV_ROSTER_2569 = [
+            [1, 1, "03989", "เด็กชายโกศล บุญมี"],
+            [1, 1, "03990", "เด็กชายจิรเมธ แย้มบางยาง"],
+            [1, 1, "03991", "เด็กชายชนาธิป แตงเอี่ยม"],
+            [1, 1, "03992", "เด็กชายชยพล มาสีใหญ่"],
+            [1, 1, "03993", "เด็กชายชานน"],
+            [1, 1, "03994", "เด็กชายณัฐวุฒิ ผ่องท่าไม้"],
+            [1, 1, "03995", "เด็กชายธีรสุวัฒน์ พุ่มสงวนสุข"],
+            [1, 1, "03996", "เด็กชายนัทธพงศ์ ศรีจินดา"],
+            [1, 1, "03997", "เด็กชายนาวิน"],
+            [1, 1, "03998", "เด็กชายปวิตร สรายทอง"],
+            [1, 1, "03999", "เด็กชายพี น้ำคำ"],
+            [1, 1, "04000", "เด็กชายพีรพัชร สมบูรณ์"],
+            [1, 2, "04001", "เด็กชายสุทัศน์ บุญยี่"],
+            [1, 2, "04002", "เด็กชายอภิรัตน์ ใจมูลมั่ง"],
+            [1, 2, "04003", "เด็กชายอิน อุนนอย"],
+            [1, 2, "04004", "เด็กชายเอมินโย"],
+            [1, 2, "04005", "เด็กหญิงคีตภัทร บัวจันทร์"],
+            [1, 2, "04006", "เด็กหญิงณัฐชา พุ่มเจริญ"],
+            [1, 2, "04007", "เด็กหญิงพลอยขวัญ บุญชู"],
+            [1, 2, "04008", "เด็กหญิงมอญ คิงค์"],
+            [1, 2, "04009", "เด็กหญิงมีนา"],
+            [1, 2, "04010", "เด็กหญิงมีนา งามนิจ"],
+            [1, 2, "04011", "เด็กหญิงสิรินทรา แสงภิรมย์"],
+            [1, 2, "04012", "เด็กหญิงแสง"],
+            [2, 1, "03949", "เด็กชายกวิน"],
+            [2, 1, "03950", "เด็กชายกิตติชัย น่วมกลิ่น"],
+            [2, 1, "03951", "เด็กชายกิตติพงษ์ สุมณฑา"],
+            [2, 1, "03952", "เด็กชายจัน เขียมราย"],
+            [2, 1, "03953", "เด็กชายฐิติพงศ์ พ่วงเอี่ยม"],
+            [2, 1, "03954", "เด็กชายณัฐนภัทร ชูวงศ์วาน"],
+            [2, 1, "03955", "เด็กชายดนัยพัชร์ โต๊ะสุวรรณชัย"],
+            [2, 1, "03956", "เด็กชายตะวัน ค้ำสมบุญ"],
+            [2, 1, "03957", "เด็กชายธีราพัฒน์ จันทร์หงษ์"],
+            [2, 1, "03958", "เด็กชายนัฐพงศ์ น้ำดอกไม้"],
+            [2, 1, "03959", "เด็กชายบรรพต แย้มบางยาง"],
+            [2, 2, "03960", "เด็กชายแป๊ดยิ้ว"],
+            [2, 2, "03961", "เด็กชายพีรวชญ์ เที่ยงทัศน์"],
+            [2, 2, "03962", "เด็กชายไวภพ ปาน"],
+            [2, 2, "03964", "เด็กชายแสง บุญทอง"],
+            [2, 2, "03965", "เด็กชายแสงสิริ"],
+            [2, 2, "03966", "เด็กหญิงกาญเกล้า ตาสังทอง"],
+            [2, 2, "03967", "เด็กหญิงคำ"],
+            [2, 2, "03971", "เด็กหญิงสุธิมา แก้ววงเสิก"],
+            [2, 2, "03972", "เด็กหญิงสุพรรษา แช่มชูกุล"],
+            [2, 2, "04017", "เด็กหญิงปาริชาต กันชัยภูมิ"],
+            [2, 2, "04018", "เด็กหญิงธารารัตน์ แซ่อุ่ย"],
+            [3, 1, "03905", "เด็กชายคุ"],
+            [3, 1, "03906", "เด็กชายเจ็ดลี้ ตาตื่น"],
+            [3, 1, "03907", "เด็กชายทุน แสงชาย"],
+            [3, 1, "03908", "เด็กชายธนกฤต บุญฤทธิ์"],
+            [3, 1, "03909", "เด็กชายบุตรนางติ๊บ ปาหล่อง"],
+            [3, 1, "03910", "เด็กชายพงษ์พิพัฒน์ พันธ์โชติ"],
+            [3, 1, "03911", "เด็กชายวีโก้ แสงคำ"],
+            [3, 1, "03913", "เด็กชายศักย์ศรณ์ ทิมชูกุล"],
+            [3, 1, "03915", "เด็กชายสิทธิพัฒน์ อันนาคะ"],
+            [3, 1, "03916", "เด็กชายเสกสรรค์ ปั้นสำรอง"],
+            [3, 1, "03917", "เด็กชายอิษฎา พยุงกิจ"],
+            [3, 1, "03918", "เด็กหญิงกุม สมใจ"],
+            [3, 1, "03919", "เด็กหญิงแก้วกล้า"],
+            [3, 2, "03920", "เด็กหญิงจันทร์"],
+            [3, 2, "03921", "เด็กหญิงธัญญลักษณ์ เกตุกิจ"],
+            [3, 2, "03923", "เด็กหญิงพัชร์ธีรา ไทยสิทธิ์"],
+            [3, 2, "03924", "เด็กหญิงมาย"],
+            [3, 2, "03925", "เด็กหญิงเมษา ครองสุทธิกานต์"],
+            [3, 2, "03926", "เด็กหญิงสุธาทิพย์ ใช้บางยาง"],
+            [3, 2, "03941", "เด็กหญิงสุกานดา อ่วมเมี่ยง"],
+            [3, 2, "03943", "เด็กหญิงกานต์"],
+            [3, 2, "03982", "เด็กหญิงสุขกมล นัยติ๊บ"],
+            [3, 2, "03984", "เด็กหญิงพัทธ์ธีรา พราหมณ์น้อย"],
+            [3, 2, "03980", "เด็กชายอานนท์ ปิ่นมณี"],
+            [3, 2, "03987", "เด็กชายเมือง"],
+            [3, 2, "04019", "นางสาวปิยะนันท์ ยิ้มลมัย"],
+            [4, 1, "03866", "นายชาย นาเฮง"],
+            [4, 1, "03870", "นายรี ตาตื่น"],
+            [4, 1, "03872", "นายสุข วานทาน"],
+            [4, 1, "03873", "นายสุข อุ่นแปง"],
+            [4, 1, "03885", "นายคชาพัฒน์ หลวงวิเศษ"],
+            [4, 1, "04016", "นายคุณภัทร รัตนอนัญชัย"],
+            [4, 1, "03878", "นางสาวกิตติญา น่วมกลิ่น"],
+            [4, 1, "03880", "นางสาวจันทร์"],
+            [4, 1, "04013", "นางสาวนันทิดา แย้มบางยาง"],
+            [4, 1, "04014", "นางสาวชลนิภา แก้ววิเชียร"],
+            [4, 1, "04015", "นางสาวภริดา สีเทา"],
+            [4, 1, "04020", "นางสาวเบญจพร สายเน่น"],
+            [4, 1, "04021", "นางสาวภีมพัฒน์ บัวผัน"],
+            [5, 1, "03827", "นายแก้ว ตาตื่น"],
+            [5, 1, "03828", "นายคำ"],
+            [5, 1, "03830", "นายฉัตร เสียมราย"],
+            [5, 1, "03838", "นายปฏิภาณ อ่วมประทุม"],
+            [5, 1, "03840", "นายพรพิพัฒน์ โพธิ์เย็น"],
+            [5, 1, "03841", "นายพีระพัฒน์ กุลรภัทรวินท์"],
+            [5, 1, "03843", "นายวันชนะ ถมสุวรรณ"],
+            [5, 1, "03844", "นายสหรัส ชาสุทธศรี"],
+            [5, 1, "03864", "นายเพชร น้ำคำ"],
+            [5, 1, "03928", "นายเอกราช แซ่เล็ก"],
+            [5, 1, "03973", "นายรวิโรจน์ สินมา"],
+            [5, 1, "03975", "นายชนะชล พิมพ์พร"],
+            [5, 2, "03976", "นายอภินันท์ ศักดิ์นุภาพ"],
+            [5, 2, "03846", "นางสาวกาญดารัตน์ ม่วงฉายา"],
+            [5, 2, "03847", "นางสาวณัฐนรี ศรีรุ่งเรือง"],
+            [5, 2, "03848", "นางสาวนริศรา สำราญพิทักษ์"],
+            [5, 2, "03850", "นางสาวพิชาภรณ์ ม่วงเชย"],
+            [5, 2, "03851", "นางสาวมธุรส คงสกุล"],
+            [5, 2, "03852", "นางสาววัชราภรณ์ กุณาศล"],
+            [5, 2, "03853", "นางสาวสุชาดา อ่วมเมี่ยง"],
+            [5, 2, "03977", "นางสาวนารากร ตาต้าน"],
+            [5, 2, "03978", "นางสาวธนัชญา ศิลากุล"],
+            [5, 2, "03979", "นางสาวรินทร์ญาดา ลมฮือหวล"],
+            [6, 1, "03794", "นายณัชญ์พิจักษณ์ พิมดี"],
+            [6, 1, "03796", "นายธนโชติ เกตุมีชัย"],
+            [6, 1, "03798", "นายนพเก้า มีบางยาง"],
+            [6, 1, "03801", "นายแปน ถ่อ"],
+            [6, 1, "03802", "นายพลรสิทธิ์ ดอกมะลิ"],
+            [6, 1, "03803", "นายพัด ปานน้อย"],
+            [6, 1, "03805", "นายมน ปานน้อย"],
+            [6, 1, "03807", "นายสมพงษ์ ทาศักดิ์"],
+            [6, 1, "03809", "นายอภิวัฒน์ หัสจิตร์"],
+            [6, 1, "03928_6", "นายพีรศักดิ์ อาษาชาติ"],
+            [6, 1, "03930", "นายหิรัญ ค้ำสมบุญ"],
+            [6, 2, "03932", "นายนรินทร์ จุดแก้ว"],
+            [6, 2, "03810", "นางสาวกาญวิสา ประดิษฐ์พล"],
+            [6, 2, "03811", "นางสาวณัฐธิดา แซ่อึ้ง"],
+            [6, 2, "03819", "นางสาวอุ้ม ลุงหลู่"],
+            [6, 2, "03857", "นางสาวณัฐรวี คชเสนีย์"],
+            [6, 2, "03903", "นางสาวนภสร ปารอด"],
+            [6, 2, "03933", "นางสาวกาญจนวรรณ ศรีวารีรัตน์"],
+            [6, 2, "03934", "นางสาวณัฐกานต์ เฟื่องฟู"],
+            [6, 2, "03935", "นางสาววิไลพร จุดแก้ว"],
+            [6, 2, "03937", "นางสาวกัญญาภัทร ไชยะพันธุ์"],
+            [6, 2, "03938", "นายวุฒิพันธุ์ จำนงกิจ"]
+        ];
+
+        // ---------- เติมนักเรียนตามทะเบียนที่ยังไม่มีในระบบ (ไม่เพิ่มซ้ำ / ไม่ทับข้อมูลเดิม) ----------
+        function hvNormCode(c) { const m = String(c || '').trim().match(/^\d+/); return m ? String(parseInt(m[0], 10)) : ''; }
+        function hvNameTokens(n) {
+            const t = String(n || '').trim().replace(/^(เด็กชาย|เด็กหญิง|นางสาว|น\.\s*ส\.|ด\.\s*ช\.|ด\.\s*ญ\.|นาย|นาง)\s*/, '').trim();
+            return t.split(/\s+/).filter(Boolean);
+        }
+        function hvEditDist(a, b) {
+            const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+            let prev = Array.from({ length: n + 1 }, (_, j) => j);
+            for (let i = 1; i <= m; i++) {
+                const cur = [i];
+                for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+                prev = cur;
+            }
+            return prev[n];
+        }
+        function hvStudentExists(e) { // e = { grade, code, name }
+            const eTok = hvNameTokens(e.name), eFull = eTok.join(''), eCode = hvNormCode(e.code);
+            return db.students.some(st => {
+                const sTok = hvNameTokens(st.name), sFull = sTok.join(''), sCode = hvNormCode(st.code);
+                const sameGrade = Number(st.grade) === Number(e.grade);
+                if (sCode && sCode === eCode && (eCode !== '3928' || sameGrade)) return true;   // รหัสซ้ำกัน (03928 ใช้ร่วมกัน ม.5/ม.6 จึงเทียบชั้นด้วย)
+                if (sFull && sFull === eFull && (eTok.length > 1 || sameGrade)) return true;     // ชื่อ-สกุลตรงกัน
+                if (sameGrade && sTok.length === 1 && sFull === eTok[0]) return true;           // ในระบบมีแค่ชื่อต้น (ไม่มีสกุล)
+                if (sameGrade && sTok.length > 1 && eTok.length > 1 && sTok[0] === eTok[0] && hvEditDist(sTok.slice(1).join(''), eTok.slice(1).join('')) <= 2) return true; // ชื่อเดียวกัน นามสกุลสะกดต่างนิดหน่อย
+                return false;
+            });
+        }
+        function hvSeedRoster() {
+            if (db.settings.rosterSeed2569 === 'v2' || localStorage.getItem('hv_roster_seed_2569') === 'v2') return;
+            const ids = new Set(db.students.map(s => s.id));
+            let added = 0;
+            HV_ROSTER_2569.forEach(([grade, room, code, name]) => {
+                if (hvStudentExists({ grade, code, name })) return;
+                let id = 'STD_R' + code, n = 1;
+                while (ids.has(id)) id = 'STD_R' + code + '_' + (++n);
+                ids.add(id);
+                db.students.push({
+                    id, code, name, grade, room,
+                    visitStatus: 'pending', homeAddress: '', visitData: null,
+                    gender: '', idCard: '', dob: '', age: '', ethnicity: '', nationality: '', religion: '',
+                    height: '', weight: '', chronicDisease: '',
+                    fatherName: '', motherName: '', studentPhone: '', parentStatus: '', parentStatusOther: '',
+                    distanceToSchool: '', travelMethod: '',
+                    father: { name: '', age: '', idCard: '', ethnicity: '', nationality: '', religion: '', phone: '', occupation: '', income: '', workplace: '' },
+                    mother: { name: '', age: '', idCard: '', ethnicity: '', nationality: '', religion: '', phone: '', occupation: '', income: '', workplace: '' }
+                });
+                added++;
+            });
+            db.settings.rosterSeed2569 = 'v2';
+            try { localStorage.setItem('hv_roster_seed_2569', 'v2'); } catch (e) {}
+            saveState(); // บันทึกในเครื่อง + ส่งขึ้น Google Sheet
+            try { if (typeof renderAdminStudents === 'function') renderAdminStudents(); } catch (e) {}
+            console.log('✅ เติมนักเรียนตามทะเบียน 2569: เพิ่ม ' + added + ' คน');
+        }
+
         applyBranding();
         cleanupTrash(); // ล้างรายการในถังขยะที่เก็บไว้เกิน 30 วันโดยอัตโนมัติ
-        loadFromGoogleSheet(); // ดึงข้อมูลล่าสุดจาก Google Sheet ทันทีที่เปิดหน้าเว็บ (ถ้าตั้งค่า URL แล้ว)
+        loadFromGoogleSheet().then(ok => { if (ok === true || !isGasReady()) hvSeedRoster(); }); // ดึงข้อมูลล่าสุดจาก Google Sheet ทันทีที่เปิดหน้าเว็บ (ถ้าตั้งค่า URL แล้ว)
 
         // เปิดหน้าเว็บมา = เจอฟอร์มกรอกข้อมูลนักเรียนทันที (ไม่มีหน้าเข้าสู่ระบบแยกต่างหากอีกต่อไป)
         document.addEventListener('DOMContentLoaded', function() {
@@ -5175,15 +5394,23 @@
 
         // เปิดฟอร์มเพิ่มนักเรียนใหม่แบบว่างเปล่า พร้อมกรอกตั้งแต่หน้าแรก
         function openAddStudentModal() {
-            document.getElementById('add-std-id').value = '';
-            document.querySelectorAll('#modal-add-student input, #modal-add-student select').forEach(el => {
-                if(el.type === 'radio' || el.type === 'checkbox') el.checked = false;
-                else el.value = '';
-            });
-            toggleAddParentStatusOther();
-            addWizardStep = 1;
-            renderAddWizard();
-            openModal('modal-add-student');
+            const panel = document.getElementById('student-form-panel');
+            const host = document.getElementById('edit-student-host');
+            if (!panel || !host) return;
+            adminEditRestore();
+            const anchor = document.createElement('div');
+            anchor.id = 'student-panel-anchor';
+            panel.parentNode.insertBefore(anchor, panel);
+            host.appendChild(panel);
+            hvSetEditModalTitle(true);
+            adminEditId = '__new__';
+            studentLogout(true);          // ล้างฟอร์มให้ว่าง (ปลดล็อกช่องชื่อ/รหัส)
+            studentSession = null;
+            studentEntryChecked = true;   // แอดมินกรอกเอง ไม่ต้องจับคู่กับนักเรียนที่มีอยู่
+            document.getElementById('edit-std-id').value = '';
+            studentWizardStep = 1;
+            renderStudentWizard();
+            openModal('modal-edit-student');
         }
 
         function confirmAddStudent() {
