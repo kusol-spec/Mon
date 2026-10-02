@@ -1905,17 +1905,82 @@
             return GAS_CONFIG.ENABLED && GAS_CONFIG.URL && GAS_CONFIG.URL.indexOf('PUT_YOUR') === -1;
         }
 
+        // ---------- อัปโหลดรูปขึ้น Google Drive ก่อนบันทึก (ในชีตจะเก็บเป็นลิงก์รูป) ----------
+        let hvSyncBusy = false, hvSyncAgain = false;
+        const HV_IMG_LABEL = { photo: 'รูปนักเรียน', houseOutPhoto: 'รูปนอกบ้าน', houseInPhoto: 'รูปข้างในบ้าน' };
+        function hvPersistStudentsLocal() {
+            try { localStorage.setItem('hv_students', JSON.stringify(db.students)); } catch (e) {}
+        }
+        async function hvUploadImage(dataUrl, filename, kind, grade) {
+            const m = /^data:(image\/[\w.+-]+);base64,(.*)$/i.exec(dataUrl);
+            if (!m) throw new Error('รูปแบบรูปไม่ถูกต้อง');
+            const res = await fetch(GAS_CONFIG.URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ key: GAS_CONFIG.KEY, action: 'uploadImage', filename: filename, mime: m[1], data: m[2], kind: kind, grade: String(grade == null ? '' : grade) })
+            });
+            const r = await res.json();
+            if (r.status !== 'ok' || !r.url) throw new Error(r.message || 'อัปโหลดไม่สำเร็จ');
+            return r.url;
+        }
+        // คืนจำนวนรูปที่อัปโหลดไม่สำเร็จ
+        async function hvUploadPendingImages() {
+            const isData = v => typeof v === 'string' && v.indexOf('data:image') === 0;
+            const jobs = [];
+            db.students.forEach(st => {
+                ['photo', 'houseOutPhoto', 'houseInPhoto'].forEach(k => {
+                    if (isData(st[k])) jobs.push({ st, kind: k, name: HV_IMG_LABEL[k], get: () => st[k], set: v => { st[k] = v; } });
+                });
+                const ex = st.extra || {};
+                Object.keys(ex).forEach(k => {
+                    if (isData(ex[k])) jobs.push({ st, kind: 'custom', name: 'รูป_' + k, get: () => ex[k], set: v => { ex[k] = v; } });
+                });
+            });
+            if (!jobs.length) return 0;
+            showToast('กำลังอัปโหลดรูป ' + jobs.length + ' รูปขึ้น Google Drive... (รอสักครู่ ห้ามปิดหน้านี้)', 'success');
+            let fail = 0, lastErr = '';
+            for (const j of jobs) {
+                try {
+                    const fname = (j.st.code + '_' + j.st.name + '_' + j.name).replace(/[\\/:*?"<>|]/g, '') + '.jpg';
+                    const url = await hvUploadImage(j.get(), fname, j.kind, j.st.grade);
+                    j.set(url);
+                    hvPersistStudentsLocal();
+                } catch (err) { fail++; lastErr = String(err && err.message || err); console.error('❌ อัปโหลดรูปไม่สำเร็จ:', err); }
+            }
+            if (fail) showToast('อัปโหลดรูปขึ้น Drive ไม่สำเร็จ ' + fail + ' รูป (' + lastErr + ') — ตรวจว่าอัปเดต Code.gs ส่วนอัปโหลดรูปและ Deploy เวอร์ชันใหม่แล้ว', 'error');
+            else showToast('อัปโหลดรูปขึ้น Google Drive เรียบร้อย', 'success');
+            return fail;
+        }
+        // เตรียมข้อมูลนักเรียนส่งขึ้นชีต: รูปที่ยังไม่ได้ขึ้น Drive และใหญ่เกินช่องชีต (50,000 ตัวอักษร) จะไม่ถูกส่ง (ยังอยู่ในเครื่อง และลองอัปโหลดใหม่รอบหน้า)
+        function hvStudentForSheet(st) {
+            const ok = v => !(typeof v === 'string' && v.indexOf('data:image') === 0 && v.length > 45000);
+            const c = Object.assign({}, st);
+            ['photo', 'houseOutPhoto', 'houseInPhoto'].forEach(k => { if (!ok(c[k])) c[k] = ''; });
+            const ex = Object.assign({}, st.extra || {});
+            Object.keys(ex).forEach(k => { if (!ok(ex[k])) ex[k] = ''; });
+            c.extraJson = JSON.stringify(ex);
+            return c;
+        }
+
         // ส่งข้อมูลทั้งหมด (นักเรียน/ครู/แอดมิน/ตั้งค่า) ไปบันทึกทับใน Google Sheet
         function syncToGoogleSheet() {
             if (!isGasReady()) return;
-            fetch(GAS_CONFIG.URL, {
+            if (hvSyncBusy) { hvSyncAgain = true; return; }
+            hvSyncBusy = true;
+            hvUploadPendingImages().catch(e => console.error(e)).then(() => hvPostSyncAll()).finally(() => {
+                hvSyncBusy = false;
+                if (hvSyncAgain) { hvSyncAgain = false; syncToGoogleSheet(); }
+            });
+        }
+        function hvPostSyncAll() {
+            return fetch(GAS_CONFIG.URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({
                     key: GAS_CONFIG.KEY,
                     action: 'syncAll',
                     payload: {
-                        students: db.students.map(st => Object.assign({}, st, { extraJson: JSON.stringify(st.extra || {}) })),
+                        students: db.students.map(hvStudentForSheet),
                         teachers: db.teachers,
                         admins: db.admins,
                         settings: db.settings
@@ -2477,6 +2542,12 @@
             });
         }
 
+        // ---------- รูปภาพ: เก็บใน Google Drive (ในชีตเป็นลิงก์) / แสดงผล ----------
+        // ลิงก์ Drive (…/file/d/ID/view) → ลิงก์รูปตัวอย่างที่ใช้แสดงในหน้าเว็บได้ ส่วนรูปที่ยังไม่อัปโหลด (data:) แสดงตามเดิม
+        function hvImgSrc(v) {
+            const m = /drive\.google\.com\/file\/d\/([\w-]+)/.exec(String(v || ''));
+            return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1000' : String(v || '');
+        }
         // ---------- รูปภาพ (ย่อขนาดอัตโนมัติ) ----------
         function hvCompress(file, steps, limit) {
             return new Promise((resolve, reject) => {
@@ -2505,11 +2576,11 @@
                 fr.readAsDataURL(file);
             });
         }
-        const HV_HOUSE_MEDIA = { steps: [[720, .62], [640, .55], [560, .5], [480, .45], [400, .4], [320, .35]], limit: 45000 };
+        const HV_HOUSE_MEDIA = { steps: [[1280, .75], [1100, .7], [960, .65], [800, .6], [640, .55]], limit: 260000 }; // อัปโหลดขึ้น Drive จึงเก็บภาพชัดขึ้นได้
         // รูปที่แอดมินเพิ่มเองเก็บรวมใน JSON เดียวกับช่องอื่น จึงย่อให้เล็กกว่า
-        const HV_CUSTOM_MEDIA = { steps: [[520, .5], [440, .45], [360, .4], [300, .35], [240, .3]], limit: 22000 };
+        const HV_CUSTOM_MEDIA = { steps: [[960, .7], [800, .65], [640, .6], [520, .55]], limit: 160000 };
         const HV_MEDIA = {
-            photo: { steps: [[320, .72], [280, .62], [240, .52], [200, .45]], limit: 30000 },
+            photo: { steps: [[640, .8], [560, .72], [480, .65], [400, .6]], limit: 120000 },
             houseOut: HV_HOUSE_MEDIA,
             houseIn: HV_HOUSE_MEDIA
         };
@@ -2547,14 +2618,14 @@
                 const empty = document.getElementById(`hv-${k}-empty`);
                 const rm = document.getElementById(`hv-${k}-remove`);
                 const has = !!hvState[k];
-                if (img) { if (has) img.src = hvState[k]; else img.removeAttribute('src'); img.classList.toggle('hidden', !has); }
+                if (img) { if (has) img.src = hvImgSrc(hvState[k]); else img.removeAttribute('src'); img.classList.toggle('hidden', !has); }
                 if (empty) empty.classList.toggle('hidden', has);
                 if (rm) rm.classList.toggle('hidden', !has);
             });
             document.querySelectorAll('[data-cimg-img]').forEach(img => {
                 const id = img.dataset.cimgImg;
                 const has = !!hvState.imgs[id];
-                if (has) img.src = hvState.imgs[id]; else img.removeAttribute('src');
+                if (has) img.src = hvImgSrc(hvState.imgs[id]); else img.removeAttribute('src');
                 img.classList.toggle('hidden', !has);
                 const empty = document.querySelector(`[data-cimg-empty="${id}"]`);
                 const rm = document.querySelector(`[data-cimg-remove="${id}"]`);
@@ -3026,14 +3097,14 @@
                 o.innerHTML = '<img class="max-w-full max-h-full rounded-xl shadow-2xl" alt="">';
                 document.body.appendChild(o);
             }
-            o.querySelector('img').src = src;
+            o.querySelector('img').src = String(src).replace(/sz=w\d+/, 'sz=w1600');
             o.classList.remove('hidden');
         }
         function hvViewMediaHtml(std) {
             const e = (v) => escapeHtml(String(v === undefined || v === null ? '' : v));
             const head = (t) => `<p class="text-[11px] font-bold text-blue-700 bg-blue-50/70 px-2 py-1 rounded-md mt-3 mb-1.5">${t}</p>`;
             const photoBox = (src, cls, icon) => src
-                ? `<img src="${src}" onclick="hvOpenImage(this.src)" class="${cls} object-cover cursor-zoom-in" alt="">`
+                ? `<img src="${hvImgSrc(src)}" onclick="hvOpenImage(this.src)" class="${cls} object-cover cursor-zoom-in" alt="">`
                 : `<div class="${cls} flex items-center justify-center bg-slate-50 text-slate-300"><i class="fa-solid ${icon} text-3xl"></i></div>`;
             const lat = hvHasPin(std) ? Number(std.homeLat) : null, lng = hvHasPin(std) ? Number(std.homeLng) : null;
             const map = hvHasPin(std)
@@ -3080,7 +3151,7 @@
                 html += `<p class="${headCls}">ข้อมูลเพิ่มเติม · ${escapeHtml(hvPageTitle(pid))}</p>` + fs.map(f => {
                     const v = ex[f.id];
                     if (f.type === 'image') {
-                        return `<div class="border-b border-slate-100 pb-1.5"><span class="text-slate-400 block mb-1">${escapeHtml(f.label)}</span>${v ? `<img src="${v}" onclick="hvOpenImage(this.src)" class="w-40 h-28 object-cover rounded-lg border border-slate-200 cursor-zoom-in" alt="">` : '<span class="text-slate-400">-</span>'}</div>`;
+                        return `<div class="border-b border-slate-100 pb-1.5"><span class="text-slate-400 block mb-1">${escapeHtml(f.label)}</span>${v ? `<img src="${hvImgSrc(v)}" onclick="hvOpenImage(this.src)" class="w-40 h-28 object-cover rounded-lg border border-slate-200 cursor-zoom-in" alt="">` : '<span class="text-slate-400">-</span>'}</div>`;
                     }
                     return `<div class="flex justify-between gap-3 border-b border-slate-100 pb-1"><span class="text-slate-400 shrink-0">${escapeHtml(f.label)}</span><span class="font-medium text-right ${v ? 'text-slate-700' : 'text-slate-400'}">${v ? escapeHtml(v) : '-'}</span></div>`;
                 }).join('');
@@ -3090,7 +3161,7 @@
         function hvCardMediaHtml(std) {
             if (!(std.photo || std.houseOutPhoto || std.houseInPhoto || hvHasPin(std))) return '';
             const th = (src, label) => src
-                ? `<div class="text-center"><img src="${src}" onclick="hvOpenImage(this.src)" class="w-full h-16 object-cover rounded-lg border border-slate-200 cursor-zoom-in" alt=""><p class="text-[9px] text-slate-400 mt-0.5">${escapeHtml(label)}</p></div>` : '';
+                ? `<div class="text-center"><img src="${hvImgSrc(src)}" onclick="hvOpenImage(this.src)" class="w-full h-16 object-cover rounded-lg border border-slate-200 cursor-zoom-in" alt=""><p class="text-[9px] text-slate-400 mt-0.5">${escapeHtml(label)}</p></div>` : '';
             return `<div class="grid grid-cols-3 gap-2 mb-2">${th(std.photo, 'รูปนักเรียน')}${th(std.houseOutPhoto, ftext('house-out-label'))}${th(std.houseInPhoto, ftext('house-in-label'))}</div>
                 ${hvHasPin(std) ? `<a href="${hvMapLink(std)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 mb-2 text-[11px] font-semibold text-indigo-600 hover:underline"><i class="fa-solid fa-location-dot text-rose-500"></i> ดูหมุดบ้านบนแผนที่</a>` : ''}`;
         }
